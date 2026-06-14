@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  amp-server:
+    build: .
+    container_name: amp-server
+    ports:
+      - "8765:8765"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - AMP_ENV=production
+      - AMP_PORT=8765
+      - AMP_PERSIST_DIR=/app/data/chroma
+    restart: unless-stopped

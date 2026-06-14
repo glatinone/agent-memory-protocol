@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "amp": {
+      "command": "python",
+      "args": ["-m", "amp_server.mcp_server"],
+      "cwd": "D:/50_Projects/01_Projects/Dust/amp/server",
+      "env": {
+        "AMP_STORAGE_PATH": "./data"
+      }
+    }
+  }
+}

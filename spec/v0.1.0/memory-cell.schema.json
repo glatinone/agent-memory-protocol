@@ -1,0 +1,250 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "https://amp-protocol.dev/spec/v0.1.0/memory-cell",
+  "title": "MemoryCell",
+  "description": "A single unit of agent memory in the Agent Memory Protocol (AMP) v0.1.0.",
+  "type": "object",
+  "required": ["amp_version", "id", "type", "content", "identity", "lifecycle"],
+  "additionalProperties": false,
+  "properties": {
+
+    "amp_version": {
+      "type": "string",
+      "description": "AMP spec version this cell conforms to.",
+      "default": "0.1.0",
+      "example": "0.1.0"
+    },
+
+    "id": {
+      "type": "string",
+      "description": "Globally unique ULID for this cell, prefixed with 'mem_'.",
+      "pattern": "^mem_[0-9A-Z]{26}$",
+      "example": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5"
+    },
+
+    "type": {
+      "type": "string",
+      "description": "Cognitive category of the memory.",
+      "enum": ["episodic", "semantic", "procedural"]
+    },
+
+    "content": {
+      "type": "object",
+      "description": "The payload of the memory cell.",
+      "required": ["text"],
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The memory content in natural language.",
+          "minLength": 1
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Arbitrary key-value pairs for indexing or filtering.",
+          "default": {},
+          "additionalProperties": true
+        }
+      }
+    },
+
+    "identity": {
+      "type": "object",
+      "description": "Ownership and provenance identity for the cell.",
+      "required": ["owner_id", "owner_type"],
+      "additionalProperties": false,
+      "properties": {
+        "owner_id": {
+          "type": "string",
+          "description": "ID of the user, agent, or organization that owns this memory."
+        },
+        "owner_type": {
+          "type": "string",
+          "description": "Category of the owning entity.",
+          "enum": ["user", "agent", "organization"]
+        },
+        "created_by": {
+          "type": ["string", "null"],
+          "description": "ID of the agent or system that created this cell. Defaults to the X-AMP-Agent-ID request header value.",
+          "default": null
+        },
+        "session_id": {
+          "type": ["string", "null"],
+          "description": "Optional session context in which this memory was created.",
+          "default": null
+        }
+      }
+    },
+
+    "lifecycle": {
+      "type": "object",
+      "description": "Temporal state and status of the memory cell.",
+      "required": ["created_at"],
+      "additionalProperties": false,
+      "properties": {
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 UTC timestamp when the cell was created. Set by the server; not writable by clients."
+        },
+        "last_accessed_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "Timestamp of the most recent GET /memories/{id} call. Updated by the server.",
+          "default": null
+        },
+        "last_updated_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "Timestamp of the most recent PATCH. Updated by the server.",
+          "default": null
+        },
+        "expires_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "Optional hard expiry timestamp. The server MAY delete the cell after this time.",
+          "default": null
+        },
+        "status": {
+          "type": "string",
+          "description": "Current lifecycle status. Transitions are managed by the lifecycle engine.",
+          "enum": ["active", "stale", "archived", "deleted"],
+          "default": "active"
+        }
+      }
+    },
+
+    "scoring": {
+      "type": "object",
+      "description": "Relevance and decay scoring for the lifecycle engine.",
+      "additionalProperties": false,
+      "properties": {
+        "importance": {
+          "type": "number",
+          "description": "Subjective importance of this memory, used in decay calculation.",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "default": 0.5
+        },
+        "confidence": {
+          "type": "number",
+          "description": "Confidence in the accuracy of the memory content.",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "default": 1.0
+        },
+        "decay_rate": {
+          "type": "number",
+          "description": "Daily exponential decay rate applied to the combined score (importance × confidence × e^(−rate × days)).",
+          "minimum": 0.0,
+          "default": 0.01
+        },
+        "access_count": {
+          "type": "integer",
+          "description": "Number of times this cell has been retrieved. Incremented by the server on each GET.",
+          "minimum": 0,
+          "default": 0
+        }
+      }
+    },
+
+    "access_policy": {
+      "type": "object",
+      "description": "Read and write access control lists. Owner and creator always retain full access.",
+      "additionalProperties": false,
+      "properties": {
+        "readable_by": {
+          "type": "array",
+          "description": "List of agent ID patterns (supports fnmatch wildcards, e.g. 'agent-team-*') allowed to read this cell.",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "writable_by": {
+          "type": "array",
+          "description": "List of agent ID patterns allowed to update or delete this cell.",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "public": {
+          "type": "boolean",
+          "description": "If true, any authenticated agent may read this cell regardless of readable_by.",
+          "default": false
+        }
+      }
+    },
+
+    "provenance": {
+      "type": "object",
+      "description": "Origin metadata describing how and where this memory was created.",
+      "additionalProperties": false,
+      "properties": {
+        "source_type": {
+          "type": ["string", "null"],
+          "description": "Category of the source that produced this memory.",
+          "enum": ["conversation", "document", "inference", "user_explicit", null],
+          "default": null
+        },
+        "source_ref": {
+          "type": ["string", "null"],
+          "description": "Opaque reference to the source artifact (e.g. a conversation ID or document URI).",
+          "default": null
+        },
+        "extraction_method": {
+          "type": ["string", "null"],
+          "description": "Method used to extract this memory from the source.",
+          "enum": ["llm_extraction", "rule_based", "user_explicit", null],
+          "default": null
+        }
+      }
+    }
+
+  },
+
+  "examples": [
+    {
+      "amp_version": "0.1.0",
+      "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5",
+      "type": "semantic",
+      "content": {
+        "text": "User prefers Python for backend development",
+        "metadata": {
+          "domain": "programming",
+          "language": "python"
+        }
+      },
+      "identity": {
+        "owner_id": "user-123",
+        "owner_type": "user",
+        "created_by": "agent-456",
+        "session_id": "session-789"
+      },
+      "lifecycle": {
+        "created_at": "2026-06-12T10:00:00Z",
+        "last_accessed_at": null,
+        "last_updated_at": null,
+        "expires_at": null,
+        "status": "active"
+      },
+      "scoring": {
+        "importance": 0.8,
+        "confidence": 0.95,
+        "decay_rate": 0.01,
+        "access_count": 0
+      },
+      "access_policy": {
+        "readable_by": ["agent-456"],
+        "writable_by": ["agent-456"],
+        "public": false
+      },
+      "provenance": {
+        "source_type": "conversation",
+        "source_ref": "conv-abc-123",
+        "extraction_method": "llm_extraction"
+      }
+    }
+  ]
+}

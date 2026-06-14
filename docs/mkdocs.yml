@@ -1,0 +1,16 @@
+site_name: "AMP (Agent Memory Protocol) Documentation"
+theme:
+  name: "material"
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+docs_dir: "."
+nav:
+  - "Getting Started": "getting-started.md"
+  - "Protocol Specification": "spec-explained.md"
+  - "API Reference": "api-reference.md"
+  - "FAQ": "faq.md"

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "amp-client"
+version = "0.1.0"
+description = "Python SDK client for the Agent Memory Protocol (AMP)"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+dependencies = [
+    "requests>=2.25.0",
+    "httpx>=0.20.0",
+]
+
+[project.optional-dependencies]
+langchain = [
+    "langchain-core>=0.1.0",
+]
+
+
