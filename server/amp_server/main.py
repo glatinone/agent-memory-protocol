@@ -211,7 +211,10 @@ async def update_memory(
     if not check_write_access(cell, x_amp_agent_id):
         return _access_denied()
 
-    updated = await storage.update(memory_id, body)
+    try:
+        updated = await storage.update(memory_id, body)
+    except InvalidTransitionError as exc:
+        return JSONResponse(status_code=409, content={"detail": str(exc)})
     return updated.model_dump(mode="json")
 
 
