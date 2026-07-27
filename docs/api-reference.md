@@ -45,7 +45,7 @@ curl http://localhost:8765/amp/v1/health
 
 ## GET /spec
 
-Returns the protocol version and a link to the canonical spec.
+Returns the protocol version and this server's declared capabilities.
 
 **Request**
 
@@ -58,9 +58,17 @@ curl http://localhost:8765/amp/v1/spec
 ```json
 {
   "amp_version": "0.1.0",
-  "spec_url": "https://github.com/AMP-Protocol/amp/blob/main/SPEC.md"
+  "capabilities": {
+    "mcp_compatible": false,
+    "storage_backends": ["chroma"],
+    "max_cell_size_bytes": 65536
+  }
 }
 ```
+
+For the canonical protocol spec itself (not this endpoint), see
+[spec/v0.1.0/memory-cell.schema.json](../spec/v0.1.0/memory-cell.schema.json) and
+[spec/v0.1.0/lifecycle.md](../spec/v0.1.0/lifecycle.md).
 
 ---
 

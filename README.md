@@ -4,10 +4,12 @@
 
 Like MCP for tool calling — but for memory.
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/AMP-Protocol/amp)
-[![PyPI version](https://img.shields.io/pypi/v/amp-client.svg)](https://pypi.org/project/amp-client/)
+[![CI](https://github.com/glatinone/agent-memory-protocol/actions/workflows/ci.yml/badge.svg)](https://github.com/glatinone/agent-memory-protocol/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Spec: v0.1.0](https://img.shields.io/badge/Spec-v0.1.0-green.svg)](../SPEC.md)
+[![Spec: v0.1.0](https://img.shields.io/badge/Spec-v0.1.0-green.svg)](spec/v0.1.0/memory-cell.schema.json)
+
+> **Not yet on PyPI.** `pip install amp-client` in the steps below doesn't work yet — install
+> the SDK from source instead: `pip install -e sdk/` from a clone of this repo.
 
 ---
 
@@ -49,8 +51,9 @@ AMP Demo complete. Two agents shared memory. One was blocked.
 Start the server, install the SDK client, and run the multi-agent demo in less than 5 minutes.
 
 ### Step 1: Install the SDK Client
+Not yet on PyPI — install from a clone of this repo:
 ```bash
-pip install amp-client
+pip install -e sdk/
 ```
 
 ### Step 2: Start the AMP Server
@@ -122,11 +125,13 @@ graph TD
 
 ## Protocol Specification
 
-AMP is a schema-first protocol. The complete specifications detailing core schemas, decay mathematical models, state machines, and endpoint signatures can be found in [../SPEC.md](../SPEC.md).
+AMP is a schema-first protocol. The complete specifications detailing core schemas and
+endpoint signatures live in [spec/v0.1.0/memory-cell.schema.json](spec/v0.1.0/memory-cell.schema.json);
+decay mathematical models and state machines are in [spec/v0.1.0/lifecycle.md](spec/v0.1.0/lifecycle.md).
 
 For more detailed guides and client references:
 - **Getting Started Guide**: [docs/getting-started.md](docs/getting-started.md)
-- **Protocol Specification Explained**: [docs/spec-explained.md](docs/spec-explained.md)
+- **Protocol Specification Explained**: [docs/spec-explained.md](docs/spec-explained.md) (narrative walkthrough of the raw spec above)
 - **API Reference**: [docs/api-reference.md](docs/api-reference.md)
 - **FAQ**: [docs/faq.md](docs/faq.md)
 - **Contributing Guide**: [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md)

@@ -11,8 +11,8 @@ Get a memory server running and store your first memory in under 5 minutes.
 **Docker (recommended)**
 
 ```bash
-git clone https://github.com/AMP-Protocol/amp.git
-cd amp/server
+git clone https://github.com/glatinone/agent-memory-protocol.git
+cd agent-memory-protocol/server
 docker compose up -d
 ```
 
@@ -23,12 +23,12 @@ curl http://localhost:8765/amp/v1/health
 # {"status":"ok","amp_version":"0.1.0"}
 ```
 
-Data is persisted to `amp/server/data/` on your host via the Docker volume.
+Data is persisted to `agent-memory-protocol/server/data/` on your host via the Docker volume.
 
 **Without Docker**
 
 ```bash
-cd amp/server
+cd agent-memory-protocol/server
 pip install -e .
 uvicorn amp_server.main:app --host 0.0.0.0 --port 8765
 ```
@@ -102,10 +102,10 @@ Deletion is a soft-delete: `lifecycle.status` is set to `"deleted"` and the cell
 
 ## 3. Python quickstart
 
-The official Python SDK client package `amp-client` makes it easy to integrate AMP into your python-based agents. Install it using pip:
+The official Python SDK client package `amp-client` makes it easy to integrate AMP into your python-based agents. Not yet on PyPI — install from a clone of this repo:
 
 ```bash
-pip install amp-client
+pip install -e sdk/
 ```
 
 Use the following quickstart pattern to manage memories with the client:

@@ -305,3 +305,18 @@ async def search_memories(
 # ---------------------------------------------------------------------------
 
 app.include_router(router)
+
+
+def main() -> None:
+    """Console-script entry point: run the server with uvicorn."""
+    import uvicorn
+
+    uvicorn.run(
+        "amp_server.main:app",
+        host=os.environ.get("AMP_HOST", "127.0.0.1"),
+        port=int(os.environ.get("AMP_PORT", "8765")),
+    )
+
+
+if __name__ == "__main__":
+    main()
