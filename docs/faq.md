@@ -10,7 +10,7 @@ For now, yes — there is no hosted AMP service yet (see [Is there a hosted vers
 
 ## Can I use AMP without the Python SDK?
 
-Yes. The Python SDK (`amp-client`) is a convenience wrapper and is fully available on PyPI (`pip install amp-client`). However, it is not strictly required. Everything the SDK does is available directly via the REST API — `POST /amp/v1/memories`, `POST /amp/v1/memories/search`, etc. Any HTTP client works: `curl`, `httpx`, `requests`, `fetch`, or any other language's HTTP library.
+Yes. The Python SDK (`amp-client`) is a convenience wrapper, and it's not strictly required; everything it does is available directly via the REST API (`POST /amp/v1/memories`, `POST /amp/v1/memories/search`, etc.). Any HTTP client works: `curl`, `httpx`, `requests`, `fetch`, or any other language's HTTP library. The SDK itself isn't on PyPI yet; install it from a clone of the repo (`pip install -e sdk/`).
 
 ## What happens to a deleted memory — is it gone forever?
 
@@ -18,7 +18,7 @@ No. `DELETE /amp/v1/memories/{id}` is a soft-delete: it sets `lifecycle.status` 
 
 ## How does decay work in plain English?
 
-Every memory cell has an `importance` score, a `confidence` score, and a `decay_rate`. Each day that passes, the effective score drops according to `importance × confidence × e^(−decay_rate × days_since_creation)`. Once that score falls below `0.3`, the cell automatically transitions from `active` to `stale`. If it stays stale for 30 days without being updated, it transitions to `archived`. You can slow decay by setting a low `decay_rate` (e.g. `0.001`) or stop it by bumping `importance` or `confidence` via a PATCH.
+Every memory cell has an `importance` score, a `confidence` score, and a `decay_rate`. Each day that passes, the effective score drops according to `importance × confidence × e^(−decay_rate × days_since_creation)`. Per the spec, once that score falls below `0.3` the cell should transition from `active` to `stale`, and after 30 days stale without an update, to `archived`. The reference server implements this state machine in `LifecycleEngine.process_all()`, but the spec leaves the run schedule implementation-defined, so wire it into a periodic job (cron, APScheduler, etc.) if you're running the reference server yourself. You can slow decay by setting a low `decay_rate` (e.g. `0.001`) or reset it by bumping `importance` or `confidence` via a PATCH.
 
 ## Can two agents share the same memory cell?
 
@@ -30,11 +30,11 @@ Yes! The Python SDK (`amp-client`) includes native `AMPMemory` integration for L
 
 ## Is there a hosted version?
 
-Not yet. A hosted AMP service is on the roadmap but has not launched. The reference server is designed to be self-hosted with minimal ops burden (single container, local volume). Watch the [GitHub repository](https://github.com/AMP-Protocol/amp) for announcements when a hosted tier is available.
+Not yet. A hosted AMP service is on the roadmap but has not launched. The reference server is designed to be self-hosted with minimal ops burden (single container, local volume). Watch the [GitHub repository](https://github.com/glatinone/agent-memory-protocol) for announcements when a hosted tier is available.
 
 ## How do I contribute to the spec?
 
-Spec changes are proposed as RFCs in `amp/spec/rfcs/`. Open a pull request with a new markdown file describing the change — what it adds, why, and any backwards-compatibility impact. Protocol changes to existing fields or endpoint contracts require an RFC; adding examples, fixing typos, or improving docs can go straight to a PR. Discussion happens on the PR; approved RFCs are merged into the versioned spec under `amp/spec/v{version}/`.
+Spec changes are proposed as RFCs in `spec/rfcs/`. Open a pull request with a new markdown file describing the change: what it adds, why, and any backwards-compatibility impact. Protocol changes to existing fields or endpoint contracts require an RFC; adding examples, fixing typos, or improving docs can go straight to a PR. Discussion happens on the PR; approved RFCs are merged into the versioned spec under `spec/v{version}/`.
 
 ## What's the difference between episodic, semantic, and procedural memory?
 

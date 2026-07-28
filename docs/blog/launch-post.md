@@ -4,7 +4,7 @@ We are in the golden age of AI agents. From autonomous coding assistants to mult
 
 Recently, Anthropic's Model Context Protocol (MCP) introduced an elegant standard for how Large Language Models (LLMs) connect to tools and data sources. But as agent systems scale, a glaring gap remains: **memory**. How do agents store, recall, and share structured context across different frameworks, sessions, and platforms? 
 
-Today, we are thrilled to introduce **AMP (Agent Memory Protocol)**: an open, HTTP-native protocol designed to standardize agent memory interoperability. Think of it like MCP, but for long-term memory.
+Today, we're introducing **AMP (Agent Memory Protocol)**: an open, HTTP-native protocol designed to standardize agent memory interoperability. Think of it like MCP, but for long-term memory.
 
 ---
 
@@ -40,7 +40,7 @@ At the core of AMP are three main components:
 
 2. **HTTP-Native API**: AMP exposes a simple REST API (under `/amp/v1/memories`, `/amp/v1/memories/search`, `/amp/v1/memories/{id}`) that makes writing and querying memory as simple as sending a JSON payload. Access control is declared on each memory cell and enforced at the gateway layer using standard request headers like `X-AMP-Agent-ID`.
 
-3. **Built-in Lifecycle and Decay Engine**: AMP automatically manages the lifecycle of memories. Over time, the importance score of a memory decays based on a customizable decay rate. When a memory's score drops below a threshold, the engine automatically archives or deletes it, ensuring your context window remains clean and relevant.
+3. **Lifecycle and Decay Engine**: every memory cell has an importance score that decays over time based on a customizable decay rate. The reference server ships a `LifecycleEngine` that evaluates this decay formula and moves cells through `active` → `stale` → `archived`, so context that's no longer relevant can be excluded from search without a manual cleanup pass.
 
 ---
 
@@ -80,17 +80,11 @@ Because the memory cell was tagged with an access policy allowing read access on
 
 Getting started with the AMP reference server and Python SDK takes less than five minutes.
 
-#### Step 1: Install the SDK Client
-Install the Python client via pip:
-```bash
-pip install amp-client
-```
-
-#### Step 2: Spin Up the Reference Server
+#### Step 1: Clone the Repo and Spin Up the Reference Server
 You can run the AMP reference server using Docker Compose:
 ```bash
-git clone https://github.com/AMP-Protocol/amp.git
-cd amp/server
+git clone https://github.com/glatinone/agent-memory-protocol.git
+cd agent-memory-protocol/server
 docker compose up -d
 ```
 Or run the server locally using Uvicorn:
@@ -99,44 +93,45 @@ pip install -e .
 uvicorn amp_server.main:app --host 127.0.0.1 --port 8765
 ```
 
+#### Step 2: Install the SDK Client
+The Python client (`amp-client`) isn't on PyPI yet, so install it from the same clone:
+```bash
+pip install -e ../sdk
+```
+
 #### Step 3: Run the Python Demo
 Once the server is running on `http://localhost:8765`, run the multi-agent demo script:
 ```bash
-python examples/multi-agent-demo/run_demo.py
+cd ../examples/multi-agent-demo
+pip install -r requirements.txt
+python run_demo.py
 ```
 
 Here is a quick look at how you can interact with AMP programmatically in Python:
 
 ```python
-from amp import AMPClient
+from amp_client import AMPClient
 
 # Initialize client
-client = AMPClient(base_url="http://localhost:8765")
+client = AMPClient("http://localhost:8765", agent_id="settings-agent")
 
 # Store a semantic memory
-cell = client.memories.create(
-    type="semantic",
+cell = client.remember(
     content={"text": "User prefers dark mode for UI components"},
-    identity={
-        "owner_id": "user-123",
-        "owner_type": "user",
-        "created_by": "settings-agent",
-    },
-    access_policy={
-        "readable_by": ["settings-agent", "ui-agent"],
-        "public": False
-    }
+    owner_id="user-123",
+    type="semantic",
+    readable_by=["settings-agent", "ui-agent"],
 )
-print(f"Memory cell created with ID: {cell.id}")
+print(f"Memory cell created with ID: {cell['id']}")
 
 # Search memory semantically from another authorized agent
-results = client.memories.search(
+ui_client = AMPClient("http://localhost:8765", agent_id="ui-agent")
+results = ui_client.recall(
     query="what color scheme does the user prefer?",
     owner_id="user-123",
-    agent_id="ui-agent" # Must match access_policy to retrieve
 )
 for item in results:
-    print(f"Found memory: {item.content['text']}")
+    print(f"Found memory: {item['content']['text']}")
 ```
 
 ---
@@ -152,10 +147,10 @@ The release of the reference server and the Python client is just the beginning 
 
 ---
 
-### Join the Memory Revolution
+### Get Involved
 
-AMP is fully open source under the MIT License and built on open standards. We believe that agent memory should be secure, portable, and open to all.
+AMP is open source under the MIT License and built on open standards.
 
-- 🌟 Star the repository on GitHub: [github.com/AMP-Protocol/amp](https://github.com/AMP-Protocol/amp)
-- 📖 Read the full Protocol Specification: [SPEC.md](https://github.com/AMP-Protocol/amp/blob/main/SPEC.md)
-- 💬 Join the discussion, file issues, and submit pull requests. Let’s build the memory layer of the agentic web together!
+- Star the repository on GitHub: [github.com/glatinone/agent-memory-protocol](https://github.com/glatinone/agent-memory-protocol)
+- Read the full Protocol Specification: [spec/v0.1.0/](https://github.com/glatinone/agent-memory-protocol/tree/master/spec/v0.1.0)
+- Join the discussion, file issues, and submit pull requests.

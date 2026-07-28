@@ -4,16 +4,16 @@
 
 ## Installation
 
-Install the package using pip:
+Not yet on PyPI, so install from a clone of the [repo](https://github.com/glatinone/agent-memory-protocol):
 
 ```bash
-pip install amp-client
+pip install -e sdk/
 ```
 
 To include LangChain support:
 
 ```bash
-pip install "amp-client[langchain]"
+pip install -e "sdk/[langchain]"
 ```
 
 ---
