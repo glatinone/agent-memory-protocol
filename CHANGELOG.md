@@ -9,6 +9,16 @@ This project has not yet made a tagged release; entries below are grouped as
 ## [Unreleased]
 
 ### Fixed
+- CI (`pip install -e .[dev]`, no lockfile) started failing with
+  `ModuleNotFoundError: No module named 'mcp.server.fastmcp'` once the MCP
+  Python SDK's 2.0.0 stable release renamed `FastMCP` to `MCPServer` and
+  restructured `mcp.server` — a pervasive breaking rework, not a simple
+  rename. The local dev environment never hit this because `uv.lock`
+  already pinned `mcp==1.28.1`. Pinned `server/pyproject.toml`'s dependency
+  to `mcp>=1.28.1,<2` rather than migrating `amp_server/mcp_server.py` to
+  the new v2 API in the same pass. Verified with a clean `pip install`
+  matching CI's exact steps: resolves `mcp==1.29.0`, all 57 tests pass.
+  Migrating to the v2 API is real, separate work — see TODO.
 - **`ChromaAdapter.search()` ranked purely by raw vector distance and never
   read `compute_decay_score()`, even though the decay formula
   (`spec/v0.1.0/lifecycle.md` §7 — `importance × confidence ×
