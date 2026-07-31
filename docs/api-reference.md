@@ -386,7 +386,7 @@ Empty body.
 
 ## POST /memories/search
 
-Performs semantic (vector) search over active memory cells for a given owner. Results are ranked by relevance to the query.
+Performs semantic (vector) search over active memory cells for a given owner. Results are ranked by a blend of vector similarity to the query (70%) and the cell's current decay score (30%, `spec/v0.1.0/lifecycle.md` §7 — `importance × confidence × e^(−decay_rate × Δt)`), so a fresher or more important cell can outrank a stale, lower-confidence one at similar relevance, but a highly relevant cell is never displaced by an unrelated-but-fresh one.
 
 **Request**
 

@@ -9,6 +9,7 @@ from typing import Any
 
 import chromadb
 
+from amp_server.lifecycle import compute_decay_score
 from amp_server.models import (
     LifecycleStatus,
     MemoryCell,
@@ -23,6 +24,24 @@ from amp_server.storage.base import (
 )
 
 _IMMUTABLE_KEYS = frozenset({"id", "type", "amp_version", "identity"})
+
+# Search ranking blend: how much weight vector similarity vs. the cell's
+# current decay score (spec §7 — importance x confidence x e^-decay*Δt)
+# carries in the final ordering. Without this, `compute_decay_score` only
+# ever drove active->stale->archived transitions and had no effect on
+# ranking, so two cells with identical text but very different freshness/
+# importance came back in an arbitrary vector-distance order.
+_SIMILARITY_WEIGHT = 0.7
+_DECAY_WEIGHT = 0.3
+
+
+def _combined_score(similarity: float, cell: MemoryCell) -> float:
+    """Blend vector similarity with decay so relevance still dominates
+    (a barely-related but fresh cell should not outrank a highly relevant
+    one), while a stale/low-importance duplicate ranks below a fresher,
+    more important one at similar relevance."""
+    decay = compute_decay_score(cell)
+    return _SIMILARITY_WEIGHT * max(0.0, similarity) + _DECAY_WEIGHT * decay
 
 
 def _serialize_cell(cell: MemoryCell) -> dict[str, Any]:
@@ -129,23 +148,28 @@ class ChromaAdapter(StorageAdapter):
         count = self._collection.count()
         if count == 0:
             return []
-        n_results = min(request.limit, count)
 
+        # Rank over the full collection, not just the top `limit` by raw
+        # vector distance: decay-weighted re-ranking can only surface a
+        # fresher/more important cell above a stale one if it was actually
+        # fetched. This mirrors `query()`'s existing scale posture (also
+        # unconditionally reads the whole collection) for this reference
+        # implementation.
         results = self._collection.query(
             query_texts=[request.query],
-            n_results=n_results,
-            include=["metadatas"],
+            n_results=count,
+            include=["metadatas", "distances"],
         )
 
-        cells: list[MemoryCell] = []
-        if not results["metadatas"]:
-            return cells
+        if not results["metadatas"] or not results["metadatas"][0]:
+            return []
 
         status_filter = list(request.status)
         if request.include_stale and LifecycleStatus.STALE not in status_filter:
             status_filter.append(LifecycleStatus.STALE)
 
-        for meta in results["metadatas"][0]:
+        scored: list[tuple[float, MemoryCell]] = []
+        for meta, distance in zip(results["metadatas"][0], results["distances"][0]):
             cell = _deserialize_cell(json.loads(meta["_cell_json"]))
 
             if request.owner_id and cell.identity.owner_id != request.owner_id:
@@ -160,9 +184,12 @@ class ChromaAdapter(StorageAdapter):
             if not _agent_can_read(cell, agent_id):
                 continue
 
-            cells.append(cell)
+            # Chroma's cosine distance is 1 - cosine_similarity.
+            similarity = 1.0 - distance
+            scored.append((_combined_score(similarity, cell), cell))
 
-        return cells[: request.limit]
+        scored.sort(key=lambda pair: pair[0], reverse=True)
+        return [cell for _, cell in scored[: request.limit]]
 
     async def query(
         self,

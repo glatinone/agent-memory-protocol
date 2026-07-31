@@ -8,6 +8,24 @@ This project has not yet made a tagged release; entries below are grouped as
 
 ## [Unreleased]
 
+### Fixed
+- **`ChromaAdapter.search()` ranked purely by raw vector distance and never
+  read `compute_decay_score()`, even though the decay formula
+  (`spec/v0.1.0/lifecycle.md` §7 — `importance × confidence ×
+  e^(−decay_rate × Δt)`) is the project's stated differentiator.** Confirmed
+  by reading `search()` end to end: it queried Chroma for exactly
+  `request.limit` results by similarity alone and never fetched distances,
+  so two cells with near-identical text but very different freshness or
+  importance came back in whatever order the vector index happened to
+  return, and a stale, low-importance duplicate could rank above a fresh,
+  important one. `search()` now queries the full collection, blends cosine
+  similarity with `compute_decay_score()` (70% similarity / 30% decay, see
+  `amp_server/storage/chroma.py`), and re-ranks before truncating to
+  `limit` — relevance still dominates (an irrelevant-but-fresh cell does
+  not outrank a genuinely relevant one), but a fresher/more important cell
+  now breaks a near-tie in its favor. 2 new tests covering both directions
+  (57 passing, was 55).
+
 ### Added
 - First CI workflow (`.github/workflows/ci.yml`): separate `server` and `sdk`
   jobs, each on a Python 3.11/3.12 matrix, installing with dev extras and
