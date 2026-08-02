@@ -17,7 +17,7 @@ Like MCP for tool calling — but for memory.
 
 AMP (Agent Memory Protocol) is an open, HTTP-native protocol for storing, retrieving, and sharing structured memory between AI agents across frameworks, vendors, and sessions. 
 
-With AMP, agents can read and write to a shared memory tier using a standardized **Memory Cell** schema. It handles built-in access control, semantic search, and automatic decay-archival lifecycles out of the box.
+With AMP, agents can read and write to a shared memory tier using a standardized **Memory Cell** schema. It handles built-in access control, decay-ranked semantic search, and an `active` → `stale` → `archived` decay lifecycle — the state machine ships with the reference server, but running it on a schedule is a deploy-time decision left to you (see the [FAQ](docs/faq.md#how-does-decay-work-in-plain-english)).
 
 ---
 
@@ -85,7 +85,7 @@ python run_demo.py
 |---|---|---|---|---|
 | **Primary Focus** | AI agent long-term memory | Generic document/data search | Conversational chat history | Tool execution / state sharing |
 | **Open Standard Schema** | Yes (`MemoryCell` model) | No (ad-hoc document formats) | No (custom data classes) | No (focused on tool descriptions) |
-| **Lifecycle & Decay** | Yes (automatic state-machine decay) | No (requires custom code/cron) | No (requires manual management) | No |
+| **Lifecycle & Decay** | Yes (state-machine decay; scheduling the run is deploy-time config, see [FAQ](docs/faq.md#how-does-decay-work-in-plain-english)) | No (requires custom code/cron) | No (requires manual management) | No |
 | **Per-Cell Access Policy** | Yes (built-in access control ACLs) | No (enforced at database layer) | No | No |
 | **Cross-Agent Sharing** | Yes (built-in out of the box) | No (requires custom middleware) | No (locked to single session/graph) | No |
 | **Client Type** | Multi-client SDK (`amp-client`) | Custom db drivers | Framework-locked memory classes | Protocol-native client/server |

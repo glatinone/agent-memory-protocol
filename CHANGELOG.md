@@ -9,6 +9,18 @@ This project has not yet made a tagged release; entries below are grouped as
 ## [Unreleased]
 
 ### Fixed
+- `README.md`'s top-line pitch and the Comparison table both described the
+  decay-archival lifecycle as "automatic... out of the box," which was true
+  of the *spec* but not of the reference server — `LifecycleEngine
+  .process_all()` is implemented and unit-tested, but nothing in
+  `amp_server/main.py` calls it, so a fresh `docker compose up -d` never
+  transitions a cell's status on its own (already documented correctly in
+  `docs/faq.md` and `docs/launch-checklist.md`, just not in the README
+  itself). Reworded both spots to describe the state machine accurately and
+  point at the FAQ for the full explanation, instead of overclaiming the
+  README readers see first. `docs/launch-checklist.md` also updated: test
+  count (55 -> 57) and last-verified date were stale, and it had no entry
+  for the 2026-07-31 decay-blend search fix or the `mcp<2` CI pin.
 - CI (`pip install -e .[dev]`, no lockfile) started failing with
   `ModuleNotFoundError: No module named 'mcp.server.fastmcp'` once the MCP
   Python SDK's 2.0.0 stable release renamed `FastMCP` to `MCPServer` and

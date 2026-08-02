@@ -3,7 +3,7 @@
 This checklist tracks whether the Agent Memory Protocol (AMP) repository and
 associated launch material are actually ready for a public launch attempt,
 not just present, but verified against the real code and docs. Last verified
-2026-07-28.
+2026-08-03.
 
 ## 1. Documentation & Specification
 - [x] Top-level `README.md` complete and landing-page ready
@@ -25,13 +25,21 @@ not just present, but verified against the real code and docs. Last verified
 ## 2. Code Implementations
 - [x] Reference server (`server/`) complete with FastAPI and ChromaDB
       integration
-- [x] All server tests pass: 55 passing (`uv run pytest`, verified
-      2026-07-28; the checklist previously said 49, which was stale)
+- [x] All server tests pass: 57 passing (`uv run pytest`, verified
+      2026-08-03; the checklist previously said 55)
 - [x] Python SDK client (`sdk/amp_client/`) complete with sync, async, and
       LangChain support, 14 tests passing
 - [x] Multi-agent demo (`examples/multi-agent-demo/`) implemented and runs
       successfully
 - [x] Local directories mapped for persistence via `AMP_PERSIST_DIR`
+- [x] `ChromaAdapter.search()` now blends vector similarity with the decay
+      score (70/30) instead of ranking on raw similarity alone, so search
+      results actually reflect the freshness/importance model described in
+      the spec and marketing drafts (shipped 2026-07-31, 2 new tests)
+- [x] CI dependency drift caught and fixed: the MCP Python SDK's 2.0.0
+      stable release broke `server`'s install (`mcp.server.fastmcp` no
+      longer exists); pinned to `mcp>=1.28.1,<2` (2026-07-31). CI verified
+      green on `master` since
 - [ ] `LifecycleEngine.process_all()` (the decay to stale to archived state
       machine) is implemented and unit-tested, but nothing in `main.py`
       ever calls it. The spec itself says the run schedule is
