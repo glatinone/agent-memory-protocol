@@ -23,6 +23,12 @@ jobs:
       - name: Run server tests
         working-directory: server
         run: pytest -v
+      - name: Security scan (pip-audit)
+        working-directory: server
+        continue-on-error: true
+        run: |
+          pip install pip-audit
+          pip-audit
 
   sdk:
     runs-on: ubuntu-latest
@@ -41,3 +47,9 @@ jobs:
       - name: Run SDK tests
         working-directory: sdk
         run: pytest -v python/tests
+      - name: Security scan (pip-audit)
+        working-directory: sdk
+        continue-on-error: true
+        run: |
+          pip install pip-audit
+          pip-audit
