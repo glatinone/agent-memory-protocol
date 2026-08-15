@@ -9,7 +9,6 @@ from typing import Any
 
 import chromadb
 
-from amp_server.lifecycle import compute_decay_score
 from amp_server.models import (
     LifecycleStatus,
     MemoryCell,
@@ -40,6 +39,11 @@ def _combined_score(similarity: float, cell: MemoryCell) -> float:
     (a barely-related but fresh cell should not outrank a highly relevant
     one), while a stale/low-importance duplicate ranks below a fresher,
     more important one at similar relevance."""
+    # Deferred import: amp_server.lifecycle imports amp_server.storage.base,
+    # and importing amp_server.storage.base triggers amp_server/storage/__init__.py,
+    # which imports this module — a module-level import here would be circular.
+    from amp_server.lifecycle import compute_decay_score
+
     decay = compute_decay_score(cell)
     return _SIMILARITY_WEIGHT * max(0.0, similarity) + _DECAY_WEIGHT * decay
 
