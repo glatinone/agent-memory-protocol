@@ -5,8 +5,11 @@
 Like MCP for tool calling — but for memory.
 
 [![CI](https://github.com/glatinone/agent-memory-protocol/actions/workflows/ci.yml/badge.svg)](https://github.com/glatinone/agent-memory-protocol/actions/workflows/ci.yml)
+[![Docs](https://github.com/glatinone/agent-memory-protocol/actions/workflows/docs.yml/badge.svg)](https://glatinone.github.io/agent-memory-protocol/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Spec: v0.1.0](https://img.shields.io/badge/Spec-v0.1.0-green.svg)](spec/v0.1.0/memory-cell.schema.json)
+
+📖 **Documentation: [glatinone.github.io/agent-memory-protocol](https://glatinone.github.io/agent-memory-protocol/)**
 
 > **Not yet on PyPI.** `pip install amp-client` in the steps below doesn't work yet — install
 > the SDK from source instead: `pip install -e sdk/` from a clone of this repo.

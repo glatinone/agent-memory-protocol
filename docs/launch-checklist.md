@@ -12,8 +12,12 @@ not just present, but verified against the real code and docs. Last verified
 - [x] Mermaid architecture diagram present and matches the real components
 - [x] Protocol specification complete at `spec/v0.1.0/` (there is no root
       `SPEC.md`; every doc link now points at the real path)
-- [x] MkDocs site configuration (`docs/mkdocs.yml`) set up, nav matches
-      existing files
+- [x] MkDocs site configuration (`mkdocs.yml` at the repo root) set up, nav
+      matches existing files, and the site is built and deployed to GitHub
+      Pages by `.github/workflows/docs.yml` (live at
+      https://glatinone.github.io/agent-memory-protocol/, verified 2026-10-02).
+      Repo-internal material (`blog/`, `hn-submission.md`, `devto-tags.md`,
+      `launch-checklist.md`) is excluded from the published site.
 - [x] `getting-started.md` verified against the real server/SDK API and repo
       paths
 - [x] `faq.md` corrected 2026-07-28: no longer claims the SDK is on PyPI, no
