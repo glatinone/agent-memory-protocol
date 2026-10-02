@@ -67,8 +67,8 @@ curl http://localhost:8765/amp/v1/spec
 ```
 
 For the canonical protocol spec itself (not this endpoint), see
-[spec/v0.1.0/memory-cell.schema.json](../spec/v0.1.0/memory-cell.schema.json) and
-[spec/v0.1.0/lifecycle.md](../spec/v0.1.0/lifecycle.md).
+[spec/v0.1.0/memory-cell.schema.json](https://github.com/glatinone/agent-memory-protocol/blob/master/spec/v0.1.0/memory-cell.schema.json) and
+[spec/v0.1.0/lifecycle.md](https://github.com/glatinone/agent-memory-protocol/blob/master/spec/v0.1.0/lifecycle.md).
 
 ---
 

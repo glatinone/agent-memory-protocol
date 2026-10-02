@@ -1,0 +1,39 @@
+site_name: "AMP (Agent Memory Protocol) Documentation"
+site_description: "An open, HTTP-native protocol for AI agent memory interoperability."
+site_url: "https://glatinone.github.io/agent-memory-protocol/"
+repo_url: "https://github.com/glatinone/agent-memory-protocol"
+repo_name: "glatinone/agent-memory-protocol"
+edit_uri: "edit/master/docs/"
+
+theme:
+  name: "material"
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+docs_dir: "docs"
+site_dir: "site"
+
+# Repo-internal material: kept in the repository, not published on the docs site.
+exclude_docs: |
+  blog/
+  devto-tags.md
+  hn-submission.md
+  launch-checklist.md
+
+nav:
+  - Home: "index.md"
+  - Getting Started: "getting-started.md"
+  - Protocol Specification: "spec-explained.md"
+  - API Reference: "api-reference.md"
+  - FAQ: "faq.md"

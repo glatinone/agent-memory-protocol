@@ -1,0 +1,4 @@
+# Documentation site dependencies (MkDocs Material).
+# Build: cd docs && mkdocs build
+# Serve: cd docs && mkdocs serve
+mkdocs-material>=9.5,<10
