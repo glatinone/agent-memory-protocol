@@ -3,10 +3,12 @@
 All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-This project has not yet made a tagged release; entries below are grouped as
-`[Unreleased]` until the first one ships.
+This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.0] - 2026-10-03
+
+First tagged release. The protocol specification (`v0.1.0`), the FastAPI
+reference server, and the Python client SDK, released together.
 
 ### Added
 - **The reference server now runs the decay engine on a schedule.** Closing the
@@ -29,6 +31,15 @@ This project has not yet made a tagged release; entries below are grouped as
     never the root logger, so every `amp_server.*` log line (including the
     scheduler's start and run records, the only way to tell the scheduler is
     alive) went nowhere.
+- First CI workflow (`.github/workflows/ci.yml`): separate `server` and `sdk`
+  jobs, each on a Python 3.11/3.12 matrix, installing with dev extras and
+  running the real test suite (`pytest`). Neither package had any CI before
+  this.
+- `sdk/pyproject.toml` now declares a `dev` extra (`pytest`, `pytest-asyncio`)
+  and `[tool.pytest.ini_options] asyncio_mode = "auto"`. Previously, running
+  `pytest` against the SDK's own test suite with only `pytest` installed
+  failed 6 of 14 tests (`test_async_client.py`) with "async def functions are
+  not natively supported" - a missing test dependency, not a code bug.
 
 ### Fixed
 - **`stale → active` reactivation was implemented nowhere.** `spec/v0.1.0/
@@ -88,19 +99,6 @@ This project has not yet made a tagged release; entries below are grouped as
   not outrank a genuinely relevant one), but a fresher/more important cell
   now breaks a near-tie in its favor. 2 new tests covering both directions
   (57 passing, was 55).
-
-### Added
-- First CI workflow (`.github/workflows/ci.yml`): separate `server` and `sdk`
-  jobs, each on a Python 3.11/3.12 matrix, installing with dev extras and
-  running the real test suite (`pytest`). Neither package had any CI before
-  this.
-- `sdk/pyproject.toml` now declares a `dev` extra (`pytest`, `pytest-asyncio`)
-  and `[tool.pytest.ini_options] asyncio_mode = "auto"`. Previously, running
-  `pytest` against the SDK's own test suite with only `pytest` installed
-  failed 6 of 14 tests (`test_async_client.py`) with "async def functions are
-  not natively supported" - a missing test dependency, not a code bug.
-
-### Fixed
 - `amp-server` console script (`server/pyproject.toml`) pointed at
   `amp_server.main:app` - the FastAPI ASGI app object itself, not a callable
   entry point - so running `amp-server` crashed immediately with
@@ -166,12 +164,11 @@ This project has not yet made a tagged release; entries below are grouped as
   below). Rewritten to state only what's actually verified, with the real
   gaps listed as open items instead of checked boxes.
 
-### Known gaps (not fixed this pass, documented rather than silently carried)
+### Known gaps (documented rather than silently carried)
 - ~~`LifecycleEngine.process_all()` is fully implemented and unit-tested, but
   nothing in `amp_server/main.py` ever calls it.~~ **Resolved 2026-10-03** - see
-  the scheduler entry under `[Unreleased]` → Added. The reference server now
-  runs it on a configurable interval and exposes an admin-gated manual-run
-  route.
+  the scheduler entry under Added. The reference server now runs it on a
+  configurable interval and exposes an admin-gated manual-run route.
 - ~~`sdk/python/amp/` is a thin, unbuilt re-export shim that isn't wired into
   `sdk/pyproject.toml`'s build, so installing `amp-client` does not make
   `import amp` work.~~ **Resolved 2026-10-03** - the shim was deleted; it was
