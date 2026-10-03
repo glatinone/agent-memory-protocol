@@ -1,0 +1,39 @@
+{
+  "name": "@glatinone/amp-client",
+  "version": "0.1.0",
+  "description": "Node.js client for the Agent Memory Protocol (AMP)",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/client.test.js"
+  },
+  "keywords": [
+    "amp",
+    "agent-memory",
+    "ai-agents",
+    "memory",
+    "protocol",
+    "mcp"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/glatinone/agent-memory-protocol.git",
+    "directory": "sdk/node"
+  },
+  "homepage": "https://glatinone.github.io/agent-memory-protocol/",
+  "bugs": {
+    "url": "https://github.com/glatinone/agent-memory-protocol/issues"
+  },
+  "//": "No dependencies on purpose. Node 18+ ships fetch, so this client needs no HTTP library, no build step, and no lockfile. The test script uses the node:test runner built into Node."
+}

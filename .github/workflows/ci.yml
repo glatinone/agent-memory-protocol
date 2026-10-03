@@ -53,3 +53,40 @@ jobs:
         run: |
           pip install pip-audit
           pip-audit
+
+  sdk-node:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["18", "20", "22"]
+        # 18 is the floor declared in package.json engines; 20 and 22 are the
+        # current LTS lines. Top of the range is capped deliberately: Node 24
+        # is not in the stable release channel matrix every runner carries yet.
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install server (to test the client against a real AMP server)
+        working-directory: server
+        run: pip install -e .
+
+      - name: Start AMP server
+        working-directory: server
+        run: |
+          uvicorn amp_server.main:app --host 127.0.0.1 --port 8765 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8765/amp/v1/health && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8765/amp/v1/health
+
+      # The Node client has no dependencies, so there is nothing to install.
+      - name: Run Node SDK tests
+        working-directory: sdk/node
+        run: node --test test/client.test.js
