@@ -59,6 +59,9 @@ Not yet on PyPI - install from a clone of this repo:
 pip install -e sdk/
 ```
 
+A Node.js client lives in `sdk/node/` and needs no dependencies at all (Node 18+
+ships `fetch`). See its [README](sdk/node/README.md).
+
 ### Step 2: Start the AMP Server
 You can run the reference server with Docker:
 ```bash
@@ -91,7 +94,7 @@ python run_demo.py
 | **Lifecycle & Decay** | Yes (state-machine decay, run on a schedule by default, see [FAQ](docs/faq.md#how-does-decay-work-in-plain-english)) | No (requires custom code/cron) | No (requires manual management) | No |
 | **Per-Cell Access Policy** | Yes (built-in access control ACLs) | No (enforced at database layer) | No | No |
 | **Cross-Agent Sharing** | Yes (built-in out of the box) | No (requires custom middleware) | No (locked to single session/graph) | No |
-| **Client Type** | Multi-client SDK (`amp-client`) | Custom db drivers | Framework-locked memory classes | Protocol-native client/server |
+| **Client Type** | Multi-language SDKs (`amp-client` for Python and Node.js) | Custom db drivers | Framework-locked memory classes | Protocol-native client/server |
 
 ---
 

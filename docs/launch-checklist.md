@@ -33,6 +33,10 @@ not just present, but verified against the real code and docs. Last verified
       2026-10-03; the checklist previously said 57, then 55)
 - [x] Python SDK client (`sdk/amp_client/`) complete with sync, async, and
       LangChain support, 14 tests passing
+- [x] Node.js SDK client (`sdk/node/`) added 2026-10-03: dependency-free
+      (Node 18+ `fetch`, JSDoc types, no build step), 16 tests passing
+      against a live server. CI runs it on Node 18/20/22 with the real
+      server booted, so the integration half does not skip.
 - [x] Multi-agent demo (`examples/multi-agent-demo/`) implemented and runs
       successfully
 - [x] Local directories mapped for persistence via `AMP_PERSIST_DIR`
