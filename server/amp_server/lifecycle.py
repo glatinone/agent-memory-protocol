@@ -68,7 +68,11 @@ class LifecycleEngine:
     async def process_all(self) -> dict[str, int]:
         """Run decay evaluation on all cells. Returns counts of transitions."""
         cells = await self._storage.list_all()
-        transitions = {"active_to_stale": 0, "stale_to_archived": 0}
+        transitions = {
+            "active_to_stale": 0,
+            "stale_to_archived": 0,
+            "stale_to_active": 0,
+        }
 
         for cell in cells:
             if cell.lifecycle.status in (
