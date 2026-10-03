@@ -41,5 +41,5 @@ if __name__ == "__main__":
             print("Agent C retrieved 0 memories - access control working correctly")
         else:
             print("Error: Agent C retrieved memories it shouldn't have access to!")
-    except Exception as e:
+    except requests.RequestException as e:
         print(f"Error connecting to AMP server: {e}")

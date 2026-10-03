@@ -6,6 +6,35 @@ on:
   pull_request:
 
 jobs:
+  # Lint, format and type checks. Separate from the test jobs so a style or
+  # typing failure reports in seconds instead of after a full matrix build.
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install lint and type tooling
+        # The SDK's langchain extra is installed on purpose: mypy only checks
+        # amp_client/integrations/langchain.py against the real
+        # BaseChatMessageHistory when langchain-core is importable. Without it
+        # the module falls back to its local placeholder classes and mypy
+        # silently stops checking the integration (and reports its
+        # `# type: ignore[override]` as unused). CONTRIBUTING tells contributors
+        # to install the same extra for the same reason.
+        run: pip install -e "server[dev]" -e "sdk[dev,langchain]"
+      - name: Ruff lint (server + sdk)
+        run: ruff check server sdk
+      - name: Ruff format check (server + sdk)
+        run: ruff format --check server sdk
+      - name: mypy (server)
+        working-directory: server
+        run: mypy
+      - name: mypy (sdk)
+        working-directory: sdk
+        run: mypy
+
   server:
     runs-on: ubuntu-latest
     strategy:
@@ -35,7 +64,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12"]
+        # 3.10 is the floor declared in pyproject.toml `requires-python`, so it
+        # is tested rather than only asserted.
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-python@v5

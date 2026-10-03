@@ -1,43 +1,42 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 from ulid import ULID
 
-
 # --- Enums ---
 
 
-class MemoryType(str, Enum):
+class MemoryType(StrEnum):
     EPISODIC = "episodic"
     SEMANTIC = "semantic"
     PROCEDURAL = "procedural"
 
 
-class OwnerType(str, Enum):
+class OwnerType(StrEnum):
     USER = "user"
     AGENT = "agent"
     ORGANIZATION = "organization"
 
 
-class LifecycleStatus(str, Enum):
+class LifecycleStatus(StrEnum):
     ACTIVE = "active"
     STALE = "stale"
     ARCHIVED = "archived"
     DELETED = "deleted"
 
 
-class SourceType(str, Enum):
+class SourceType(StrEnum):
     CONVERSATION = "conversation"
     DOCUMENT = "document"
     INFERENCE = "inference"
     USER_EXPLICIT = "user_explicit"
 
 
-class ExtractionMethod(str, Enum):
+class ExtractionMethod(StrEnum):
     LLM_EXTRACTION = "llm_extraction"
     RULE_BASED = "rule_based"
     USER_EXPLICIT = "user_explicit"
@@ -151,6 +150,7 @@ class MemoryCellCreate(BaseModel):
 
 class MemoryCellUpdate(BaseModel):
     """Partial update model. MUST NOT include id, type, amp_version, or identity."""
+
     content: MemoryContent | None = None
     scoring: MemoryScoring | None = None
     access_policy: MemoryAccessPolicy | None = None

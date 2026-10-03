@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from amp_server.models import LifecycleStatus, MemoryCell, MemoryCellUpdate
 from amp_server.storage.base import StorageAdapter
@@ -18,11 +18,11 @@ ARCHIVE_STALE_DAYS = 30
 def compute_decay_score(cell: MemoryCell, now: datetime | None = None) -> float:
     """Compute decay score: importance × confidence × e^(-decay_rate × Δt_days)."""
     if now is None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
     # Spec §7.1: use last_accessed_at if available, else created_at
     reference = cell.lifecycle.last_accessed_at or cell.lifecycle.created_at
     if reference.tzinfo is None:
-        reference = reference.replace(tzinfo=timezone.utc)
+        reference = reference.replace(tzinfo=UTC)
     delta_days = (now - reference).total_seconds() / 86400.0
     return (
         cell.scoring.importance
@@ -32,7 +32,6 @@ def compute_decay_score(cell: MemoryCell, now: datetime | None = None) -> float:
 
 
 class LifecycleEngine:
-
     def __init__(self, storage: StorageAdapter) -> None:
         self._storage = storage
 
@@ -42,7 +41,7 @@ class LifecycleEngine:
             return LifecycleStatus.DELETED
 
         score = compute_decay_score(cell)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         if cell.lifecycle.status == LifecycleStatus.STALE:
             # Spec §2: a PATCH that raises the decay score back above threshold
@@ -55,7 +54,7 @@ class LifecycleEngine:
 
             last_update = cell.lifecycle.last_updated_at or cell.lifecycle.created_at
             if last_update.tzinfo is None:
-                last_update = last_update.replace(tzinfo=timezone.utc)
+                last_update = last_update.replace(tzinfo=UTC)
             stale_days = (now - last_update).total_seconds() / 86400.0
             if stale_days >= ARCHIVE_STALE_DAYS:
                 return LifecycleStatus.ARCHIVED
@@ -85,9 +84,7 @@ class LifecycleEngine:
             if new_status != cell.lifecycle.status:
                 old_status = cell.lifecycle.status
                 update = MemoryCellUpdate(
-                    lifecycle=cell.lifecycle.model_copy(
-                        update={"status": new_status}
-                    )
+                    lifecycle=cell.lifecycle.model_copy(update={"status": new_status})
                 )
                 await self._storage.update(cell.id, update)
                 key = f"{old_status.value}_to_{new_status.value}"

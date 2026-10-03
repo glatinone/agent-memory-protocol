@@ -3,21 +3,19 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
+from conftest import make_cell
 
 from amp_server.lifecycle import (
-    STALE_THRESHOLD,
     ARCHIVE_STALE_DAYS,
+    STALE_THRESHOLD,
     LifecycleEngine,
     compute_decay_score,
 )
-from amp_server.models import LifecycleStatus, MemoryType
+from amp_server.models import LifecycleStatus
 from amp_server.storage.chroma import ChromaAdapter
-
-from conftest import make_cell
-
 
 # ---------------------------------------------------------------------------
 # Decay formula
@@ -26,7 +24,7 @@ from conftest import make_cell
 
 def test_decay_score_at_creation():
     """At t=0, decay_score = importance × confidence."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     cell = make_cell(importance=0.8, confidence=0.9, created_at=now)
     score = compute_decay_score(cell, now=now)
     assert abs(score - 0.8 * 0.9) < 1e-4
@@ -34,16 +32,18 @@ def test_decay_score_at_creation():
 
 def test_decay_score_after_69_days():
     """With decay_rate=0.01, half-life ≈ 69.3 days. Score should be ~half."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     created = now - timedelta(days=69.3)
-    cell = make_cell(importance=1.0, confidence=1.0, decay_rate=0.01, created_at=created)
+    cell = make_cell(
+        importance=1.0, confidence=1.0, decay_rate=0.01, created_at=created
+    )
     score = compute_decay_score(cell, now=now)
     expected = math.exp(-0.01 * 69.3)
     assert abs(score - expected) < 0.01
 
 
 def test_decay_score_decreases_over_time():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     cell_recent = make_cell(importance=0.8, confidence=1.0, created_at=now)
     cell_old = make_cell(
         importance=0.8, confidence=1.0, created_at=now - timedelta(days=100)
@@ -55,7 +55,7 @@ def test_decay_score_decreases_over_time():
 
 def test_decay_score_zero_decay_rate():
     """Zero decay_rate means no decay — score stays constant."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     created = now - timedelta(days=1000)
     cell = make_cell(importance=0.7, confidence=0.8, decay_rate=0.0, created_at=created)
     score = compute_decay_score(cell, now=now)
@@ -73,7 +73,7 @@ async def test_active_to_stale_transition():
     storage = ChromaAdapter()
     engine = LifecycleEngine(storage)
 
-    old_date = datetime.now(timezone.utc) - timedelta(days=500)
+    old_date = datetime.now(UTC) - timedelta(days=500)
     cell = make_cell(
         importance=0.3,
         confidence=0.5,
@@ -97,7 +97,7 @@ async def test_active_stays_active_when_score_high():
     cell = make_cell(
         importance=0.9,
         confidence=1.0,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     new_status = await engine.evaluate_cell(cell)
     assert new_status == LifecycleStatus.ACTIVE
@@ -109,7 +109,7 @@ async def test_stale_to_archived_after_30_days():
     storage = ChromaAdapter()
     engine = LifecycleEngine(storage)
 
-    old_date = datetime.now(timezone.utc) - timedelta(days=ARCHIVE_STALE_DAYS + 1)
+    old_date = datetime.now(UTC) - timedelta(days=ARCHIVE_STALE_DAYS + 1)
     cell = make_cell(
         importance=0.1,
         confidence=0.1,
@@ -142,7 +142,7 @@ async def test_process_all_transitions():
     storage = ChromaAdapter()
     engine = LifecycleEngine(storage)
 
-    old_date = datetime.now(timezone.utc) - timedelta(days=500)
+    old_date = datetime.now(UTC) - timedelta(days=500)
     cell_will_stale = make_cell(
         importance=0.2,
         confidence=0.3,
@@ -154,7 +154,7 @@ async def test_process_all_transitions():
     cell_stays_active = make_cell(
         importance=0.95,
         confidence=1.0,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         text="stays active",
     )
     await storage.save(cell_will_stale)

@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from amp_server.models import (
+    ExtractionMethod,
     LifecycleStatus,
     MemoryAccessPolicy,
     MemoryCell,
-    MemoryCellCreate,
     MemoryContent,
     MemoryIdentity,
     MemoryLifecycle,
@@ -20,7 +20,6 @@ from amp_server.models import (
     MemoryType,
     OwnerType,
     SourceType,
-    ExtractionMethod,
 )
 from amp_server.storage.chroma import ChromaAdapter
 
@@ -57,7 +56,7 @@ def make_cell(
             created_by=created_by,
         ),
         lifecycle=MemoryLifecycle(
-            created_at=created_at or datetime.now(timezone.utc),
+            created_at=created_at or datetime.now(UTC),
             status=status,
         ),
         scoring=MemoryScoring(

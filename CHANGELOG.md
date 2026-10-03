@@ -5,6 +5,48 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Lint, format and type gates.** Ruff and mypy are configured for both Python
+  packages, a `quality` job runs them in CI, and `.pre-commit-config.yaml` runs
+  the lint and format hooks before each local commit. Neither package had a
+  linter or a type checker before this; the entries below are what the gates
+  surfaced on the first run.
+- A repo-root `ruff.toml`, so Python outside the two packages (`examples/`) is
+  checked with the repository's rule set instead of Ruff's own fallback.
+- `server/tests/test_error_shape.py`, pinning the error envelope on every
+  endpoint and on every error helper.
+
+### Changed
+- **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a
+  conflict with `{"detail": ...}` while `DELETE` answered with
+  `{"error": {...}}`. Both SDKs read `body.error.code`, so a client hitting the
+  PATCH conflict degraded to a generic `HTTP error 409`. Protocol errors now
+  come from `amp_server.errors.AMPError` and a single exception handler renders
+  them, which also lets the route handlers stay annotated `-> dict`.
+- `amp_server` enums use `enum.StrEnum` instead of `class X(str, Enum)`.
+- **The Python SDK's declared Python floor is now 3.10, and CI tests it.**
+  `requires-python` claimed `>=3.8`, but `amp_client.exceptions` uses PEP 604
+  unions in a signature without `from __future__ import annotations`, so the
+  package could not be imported on 3.8 or 3.9 at all.
+- `.gitattributes` normalizes line endings to LF in the repository, so the
+  stored form no longer depends on a contributor's `core.autocrlf` setting.
+- The demo scripts under `examples/` catch `requests.RequestException` rather
+  than every `Exception`, so a genuine bug surfaces instead of printing a
+  "server unreachable" message.
+
+### Fixed
+- The `except Exception` blocks that swallowed JSON-decoding failures in both
+  SDKs now catch `ValueError`, so an unexpected error is no longer hidden
+  behind a generic HTTP message.
+
+### Removed
+- The duplicate root `CONTRIBUTING.md`. Two divergent copies existed, nothing
+  linked the root one, and GitHub prefers the `.github/` copy anyway; the
+  merged content (including the quality gates above) lives in
+  `.github/CONTRIBUTING.md`.
+
 ## [0.1.0] - 2026-10-03
 
 First tagged release. The protocol specification (`v0.1.0`), the FastAPI

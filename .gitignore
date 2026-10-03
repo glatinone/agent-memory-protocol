@@ -141,3 +141,10 @@ archive/
 
 # ChromaDB data
 server/data/
+
+# Ruff cache
+.ruff_cache/
+
+# No workflow installs with uv (CI and CONTRIBUTING use pip), so a local
+# uv.lock is not part of the build and would only drift.
+server/uv.lock

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import fnmatch
 import json
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, cast
 
 import chromadb
 
@@ -23,6 +23,10 @@ from amp_server.storage.base import (
 )
 
 _IMMUTABLE_KEYS = frozenset({"id", "type", "amp_version", "identity"})
+
+# The whole cell is stored as one JSON blob under this metadata key. Chroma
+# metadata values must be scalars, so the cell cannot be stored field-by-field.
+_CELL_JSON_KEY = "_cell_json"
 
 # Search ranking blend: how much weight vector similarity vs. the cell's
 # current decay score (spec §7 — importance x confidence x e^-decay*Δt)
@@ -58,6 +62,22 @@ def _deserialize_cell(data: dict[str, Any]) -> MemoryCell:
     return MemoryCell.model_validate(data)
 
 
+def _as_list(value: Any) -> list[Any]:
+    """Narrow a Chroma result field to a list.
+
+    Chroma's stubs type every result field as a union that includes None and
+    scalar values, so indexing one directly is a type error. The actual shape
+    is known at each call site; the narrowing lives here instead of in a cast
+    at every use.
+    """
+    return cast("list[Any]", value) if value else []
+
+
+def _cell_from_metadata(meta: Any) -> MemoryCell:
+    """Decode a cell from the single JSON blob stored as its Chroma metadata."""
+    return _deserialize_cell(json.loads(str(meta[_CELL_JSON_KEY])))
+
+
 def _agent_can_read(cell: MemoryCell, agent_id: str) -> bool:
     """Check if agent_id has read access to cell, per spec §8."""
     if cell.access_policy.public:
@@ -74,7 +94,6 @@ def _agent_can_read(cell: MemoryCell, agent_id: str) -> bool:
 
 
 class ChromaAdapter(StorageAdapter):
-
     def __init__(
         self,
         persist_directory: str | None = None,
@@ -94,38 +113,41 @@ class ChromaAdapter(StorageAdapter):
         self._collection.add(
             ids=[cell.id],
             documents=[cell.content.text],
-            metadatas=[{"_cell_json": json.dumps(cell_data)}],
+            metadatas=[{_CELL_JSON_KEY: json.dumps(cell_data)}],
         )
         return cell.id
 
     async def get(self, memory_id: str) -> MemoryCell:
-        """Return cell and apply access boost (increments access_count, updates last_accessed_at)."""
+        """Return a cell and apply the access boost (access_count, last_accessed_at)."""
         results = self._collection.get(ids=[memory_id], include=["metadatas"])
-        if not results["ids"]:
+        metadatas = _as_list(results["metadatas"])
+        if not results["ids"] or not metadatas:
             raise MemoryNotFoundError(memory_id)
-        meta = results["metadatas"][0]
-        cell = _deserialize_cell(json.loads(meta["_cell_json"]))
+        cell = _cell_from_metadata(metadatas[0])
         cell.scoring.access_count += 1
-        cell.lifecycle.last_accessed_at = datetime.now(timezone.utc)
+        cell.lifecycle.last_accessed_at = datetime.now(UTC)
         await self._update_internal(memory_id, cell)
         return cell
 
-    async def update(self, memory_id: str, updates: MemoryCellUpdate | dict[str, Any]) -> MemoryCell:
+    async def update(
+        self, memory_id: str, updates: MemoryCellUpdate | dict[str, Any]
+    ) -> MemoryCell:
         cell = await self._get_raw(memory_id)
         cell_dict = _serialize_cell(cell)
         if isinstance(updates, dict):
             updates_dict = updates
         else:
-            # model_dump_json ensures datetimes serialize to ISO strings — safe for json.dumps
+            # model_dump_json serializes datetimes to ISO strings, so the
+            # result is safe to hand to json.dumps.
             updates_dict = json.loads(updates.model_dump_json(exclude_none=True))
         self._apply_updates(cell_dict, updates_dict)
-        cell_dict["lifecycle"]["last_updated_at"] = datetime.now(timezone.utc).isoformat()
+        cell_dict["lifecycle"]["last_updated_at"] = datetime.now(UTC).isoformat()
         updated_cell = _deserialize_cell(cell_dict)
         await self._update_internal(memory_id, updated_cell)
         return updated_cell
 
     async def mark_deleted(self, memory_id: str) -> None:
-        """Transition to 'deleted'. Retains physical record per spec §6.3 (GDPR audit window)."""
+        """Transition to 'deleted'. Retains the record per spec §6.3 (GDPR window)."""
         cell = await self._get_raw(memory_id)
         if cell.lifecycle.status != LifecycleStatus.ARCHIVED:
             raise InvalidTransitionError(
@@ -134,7 +156,7 @@ class ChromaAdapter(StorageAdapter):
             )
         cell_dict = _serialize_cell(cell)
         cell_dict["lifecycle"]["status"] = LifecycleStatus.DELETED.value
-        cell_dict["lifecycle"]["last_updated_at"] = datetime.now(timezone.utc).isoformat()
+        cell_dict["lifecycle"]["last_updated_at"] = datetime.now(UTC).isoformat()
         updated_cell = _deserialize_cell(cell_dict)
         await self._update_internal(memory_id, updated_cell)
 
@@ -165,16 +187,21 @@ class ChromaAdapter(StorageAdapter):
             include=["metadatas", "distances"],
         )
 
-        if not results["metadatas"] or not results["metadatas"][0]:
+        metadatas = _as_list(results["metadatas"])
+        if not metadatas or not metadatas[0]:
             return []
+
+        # Both lists come from the same query and are therefore parallel;
+        # strict=False keeps zip's original truncating behaviour.
+        distances = _as_list(results["distances"])
 
         status_filter = list(request.status)
         if request.include_stale and LifecycleStatus.STALE not in status_filter:
             status_filter.append(LifecycleStatus.STALE)
 
         scored: list[tuple[float, MemoryCell]] = []
-        for meta, distance in zip(results["metadatas"][0], results["distances"][0]):
-            cell = _deserialize_cell(json.loads(meta["_cell_json"]))
+        for meta, distance in zip(metadatas[0], distances[0], strict=False):
+            cell = _cell_from_metadata(meta)
 
             if request.owner_id and cell.identity.owner_id != request.owner_id:
                 continue
@@ -226,18 +253,15 @@ class ChromaAdapter(StorageAdapter):
         if count == 0:
             return []
         results = self._collection.get(include=["metadatas"])
-        cells: list[MemoryCell] = []
-        for meta in results["metadatas"]:
-            cells.append(_deserialize_cell(json.loads(meta["_cell_json"])))
-        return cells
+        return [_cell_from_metadata(meta) for meta in _as_list(results["metadatas"])]
 
     async def _get_raw(self, memory_id: str) -> MemoryCell:
         """Get a MemoryCell without triggering the access boost."""
         results = self._collection.get(ids=[memory_id], include=["metadatas"])
-        if not results["ids"]:
+        metadatas = _as_list(results["metadatas"])
+        if not results["ids"] or not metadatas:
             raise MemoryNotFoundError(memory_id)
-        meta = results["metadatas"][0]
-        return _deserialize_cell(json.loads(meta["_cell_json"]))
+        return _cell_from_metadata(metadatas[0])
 
     async def _update_internal(self, memory_id: str, cell: MemoryCell) -> None:
         """Overwrite a cell's stored data in ChromaDB."""
@@ -245,7 +269,7 @@ class ChromaAdapter(StorageAdapter):
         self._collection.update(
             ids=[memory_id],
             documents=[cell.content.text],
-            metadatas=[{"_cell_json": json.dumps(cell_data)}],
+            metadatas=[{_CELL_JSON_KEY: json.dumps(cell_data)}],
         )
 
     @staticmethod

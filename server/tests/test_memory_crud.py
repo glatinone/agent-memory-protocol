@@ -2,23 +2,21 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
+from conftest import make_cell
 from httpx import ASGITransport, AsyncClient
 
 from amp_server.models import (
     LifecycleStatus,
-    MemoryContent,
     MemoryCellUpdate,
+    MemoryContent,
     MemoryScoring,
     MemoryType,
     SearchRequest,
 )
 from amp_server.storage.base import InvalidTransitionError, MemoryNotFoundError
-
-from conftest import make_cell
-
 
 # ---------------------------------------------------------------------------
 # Save & Get
@@ -193,19 +191,21 @@ async def test_search_ranks_fresher_important_cell_above_stale_duplicate(storage
         text="user prefers dark mode in the editor",
         importance=0.1,
         confidence=0.3,
-        created_at=datetime.now(timezone.utc) - timedelta(days=365),
+        created_at=datetime.now(UTC) - timedelta(days=365),
     )
     fresh_important = make_cell(
         owner_id="user-123",
         text="user prefers dark mode in the editor",
         importance=0.9,
         confidence=1.0,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     await storage.save(stale_duplicate)
     await storage.save(fresh_important)
 
-    request = SearchRequest(query="dark mode editor preference", owner_id="user-123", limit=2)
+    request = SearchRequest(
+        query="dark mode editor preference", owner_id="user-123", limit=2
+    )
     results = await storage.search(request, agent_id="agent-456")
 
     assert len(results) == 2
@@ -226,7 +226,7 @@ async def test_search_still_prioritizes_relevance_over_decay(storage):
         text="the user's cat is orange and likes to nap",
         importance=1.0,
         confidence=1.0,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     await storage.save(relevant)
     await storage.save(irrelevant_but_fresh)
@@ -372,9 +372,7 @@ async def test_delete_non_archived_cell_returns_409():
         assert create.status_code == 201
         memory_id = create.json()["id"]
 
-        delete = await client.delete(
-            f"/amp/v1/memories/{memory_id}", headers=_HEADERS
-        )
+        delete = await client.delete(f"/amp/v1/memories/{memory_id}", headers=_HEADERS)
 
     assert delete.status_code == 409
     assert delete.json()["error"]["code"] == "INVALID_TRANSITION"

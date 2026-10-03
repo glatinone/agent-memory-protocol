@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
+from conftest import make_cell
 from httpx import ASGITransport, AsyncClient
 
-from amp_server.lifecycle import STALE_THRESHOLD, LifecycleEngine
+from amp_server.lifecycle import LifecycleEngine
 from amp_server.models import LifecycleStatus, MemoryCellUpdate, MemoryScoring
 from amp_server.scheduler import (
     DEFAULT_INTERVAL_SECONDS,
@@ -19,8 +20,6 @@ from amp_server.scheduler import (
     settings_from_env,
 )
 from amp_server.storage.chroma import ChromaAdapter
-
-from conftest import make_cell
 
 
 def _fresh_storage() -> ChromaAdapter:
@@ -39,7 +38,7 @@ async def test_stale_reactivates_when_score_recovers():
     engine = LifecycleEngine(storage)
 
     # Long-decayed cell that had gone stale, then re-scored into relevance.
-    old = datetime.now(timezone.utc) - timedelta(days=500)
+    old = datetime.now(UTC) - timedelta(days=500)
     cell = make_cell(
         importance=1.0,
         confidence=1.0,
@@ -56,7 +55,7 @@ async def test_stale_reactivation_via_patch_then_run():
     storage = _fresh_storage()
     engine = LifecycleEngine(storage)
 
-    old = datetime.now(timezone.utc) - timedelta(days=500)
+    old = datetime.now(UTC) - timedelta(days=500)
     cell = make_cell(
         importance=0.2,
         confidence=0.5,
@@ -83,7 +82,7 @@ async def test_stale_still_archives_when_score_stays_low():
     """Reactivation must not stop a genuinely-decayed cell from archiving."""
     storage = _fresh_storage()
     engine = LifecycleEngine(storage)
-    old = datetime.now(timezone.utc) - timedelta(days=500)
+    old = datetime.now(UTC) - timedelta(days=500)
 
     cell = make_cell(
         importance=0.1,
@@ -257,7 +256,7 @@ async def test_lifecycle_run_with_valid_token_reports_transitions():
     # Seed a cell that must go active -> stale so the counts are non-trivial.
     import amp_server.main as main_mod
 
-    old = datetime.now(timezone.utc) - timedelta(days=500)
+    old = datetime.now(UTC) - timedelta(days=500)
     await main_mod._storage.save(
         make_cell(
             importance=0.2,

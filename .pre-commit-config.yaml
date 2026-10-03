@@ -1,0 +1,31 @@
+# Runs the lint and format gates before each commit. CI is the source of truth
+# (.github/workflows/ci.yml); this only means you find out sooner.
+#
+#   pip install pre-commit
+#   pre-commit install
+#
+# Ruff configuration lives in each package's pyproject.toml and Ruff resolves it
+# per file, so the hooks run from the repository root by default and still apply
+# the right settings to server/ and sdk/.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: check-yaml
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+        args: [--fix=lf]
+        exclude: \.(png|jpg|jpeg|gif|ico|pdf|woff2?)$
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.10
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+        files: ^(server|sdk)/.*\.py$
+      - id: ruff-format
+        files: ^(server|sdk)/.*\.py$

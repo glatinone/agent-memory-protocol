@@ -39,7 +39,9 @@ class FakeAMPClient:
         self._counter = 0
         self.fail_on_list = False
 
-    def remember(self, content: str, owner_id: str, type: str = "semantic", **_: Any) -> dict:
+    def remember(
+        self, content: str, owner_id: str, type: str = "semantic", **_: Any
+    ) -> dict:
         self._counter += 1
         cell = {
             "id": f"mem_test_{self._counter}",
@@ -53,7 +55,9 @@ class FakeAMPClient:
         self.cells.append(cell)
         return cell
 
-    def list_memories(self, owner_id: str, type: str | None = None, limit: int = 20) -> list[dict]:
+    def list_memories(
+        self, owner_id: str, type: str | None = None, limit: int = 20
+    ) -> list[dict]:
         if self.fail_on_list:
             raise RuntimeError("storage unavailable")
         return [

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+
 import requests
 
 from amp_client.exceptions import AMPError
@@ -20,7 +21,7 @@ class AMPClient:
         normalized_url = server_url.rstrip("/")
         if not normalized_url.endswith("/amp/v1"):
             normalized_url += "/amp/v1"
-        
+
         self.server_url = normalized_url
         self.agent_id = agent_id
         self.session = requests.Session()
@@ -28,12 +29,12 @@ class AMPClient:
     def _request(self, method: str, path: str, **kwargs: Any) -> requests.Response:
         """Internal helper to execute HTTP requests with error handling."""
         url = f"{self.server_url}{path}"
-        
+
         # Ensure standard headers are present
         headers = kwargs.pop("headers", {})
         if "X-AMP-Agent-ID" not in headers:
             headers["X-AMP-Agent-ID"] = self.agent_id
-        
+
         try:
             response = self.session.request(method, url, headers=headers, **kwargs)
         except requests.RequestException as e:
@@ -54,7 +55,7 @@ class AMPClient:
                             message = f"{code}: {msg}"
                         elif msg:
                             message = msg
-            except Exception:
+            except ValueError:
                 pass
             raise AMPError(message, status_code=response.status_code, details=details)
 
@@ -202,5 +203,5 @@ class AMPClient:
             response = self._request("GET", "/health")
             data = response.json()
             return data.get("status") == "ok"
-        except Exception:
+        except (AMPError, ValueError):
             return False

@@ -7,7 +7,7 @@ name = "amp-client"
 version = "0.1.0"
 description = "Python SDK client for the Agent Memory Protocol (AMP)"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 dependencies = [
     "requests>=2.25.0",
@@ -21,6 +21,8 @@ langchain = [
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.23.0",
+    "ruff>=0.6.0",
+    "mypy>=1.11.0",
 ]
 
 [project.urls]
@@ -32,4 +34,22 @@ Changelog = "https://github.com/glatinone/agent-memory-protocol/blob/master/CHAN
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+# See server/pyproject.toml: Ruff would otherwise reformat Python fences inside
+# this SDK's README as a side effect of `ruff format`.
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "BLE"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["amp_client"]
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
 

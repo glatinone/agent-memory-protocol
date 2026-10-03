@@ -39,6 +39,7 @@ except ImportError:  # pragma: no cover - exercised only without langchain-core
     class HumanMessage(BaseMessage):  # type: ignore[no-redef]
         """Placeholder, see above."""
 
+
 logger = logging.getLogger(__name__)
 
 _HUMAN_PREFIX = "Human: "
@@ -92,9 +93,9 @@ class AMPMemory(BaseChatMessageHistory):
         for cell in self._load_cells():
             text = cell.get("content", {}).get("text", "")
             if text.startswith(_AI_PREFIX):
-                messages.append(AIMessage(content=text[len(_AI_PREFIX):]))
+                messages.append(AIMessage(content=text[len(_AI_PREFIX) :]))
             elif text.startswith(_HUMAN_PREFIX):
-                messages.append(HumanMessage(content=text[len(_HUMAN_PREFIX):]))
+                messages.append(HumanMessage(content=text[len(_HUMAN_PREFIX) :]))
             else:
                 # Cells written before the prefixes existed, or by another
                 # agent, are treated as human input rather than dropped.
@@ -118,7 +119,9 @@ class AMPMemory(BaseChatMessageHistory):
                 if memory_id:
                     self.client.forget(memory_id)
         except Exception as exc:  # noqa: BLE001 - clear() must not raise mid-chain
-            logger.error("Failed to clear memories for owner %s: %s", self.owner_id, exc)
+            logger.error(
+                "Failed to clear memories for owner %s: %s", self.owner_id, exc
+            )
 
     # -- Chain-facing conveniences ----------------------------------------
 

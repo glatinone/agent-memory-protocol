@@ -1,9 +1,9 @@
-import pytest
 from unittest.mock import MagicMock, patch
+
 import httpx
+import pytest
 
 from amp_client.async_client import AsyncAMPClient
-from amp_client.exceptions import AMPError
 
 
 @pytest.mark.asyncio
@@ -26,7 +26,11 @@ async def test_async_remember_success(mock_post):
         "id": "mem_123",
         "type": "semantic",
         "content": {"text": "hello fact", "metadata": {}},
-        "identity": {"owner_id": "user_abc", "owner_type": "user", "created_by": "test_agent"},
+        "identity": {
+            "owner_id": "user_abc",
+            "owner_type": "user",
+            "created_by": "test_agent",
+        },
     }
     mock_post.return_value = mock_response
 

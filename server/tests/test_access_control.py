@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from conftest import make_cell
 
 from amp_server.access_control import (
     AccessDeniedError,
@@ -11,10 +12,6 @@ from amp_server.access_control import (
     enforce_read,
     enforce_write,
 )
-from amp_server.models import LifecycleStatus
-
-from conftest import make_cell
-
 
 # ---------------------------------------------------------------------------
 # Read access
@@ -147,10 +144,12 @@ def test_enforce_write_raises():
 async def test_api_get_returns_403_for_unauthorized_agent():
     """GET with X-AMP-Agent-ID that lacks read permission returns 403."""
     import uuid
+
     from httpx import ASGITransport, AsyncClient
+
     import amp_server.main as main_mod
-    from amp_server.storage.chroma import ChromaAdapter
     from amp_server.lifecycle import LifecycleEngine
+    from amp_server.storage.chroma import ChromaAdapter
 
     main_mod._storage = ChromaAdapter(collection_name=f"test_{uuid.uuid4().hex[:12]}")
     main_mod._lifecycle = LifecycleEngine(main_mod._storage)
@@ -189,10 +188,12 @@ async def test_api_get_returns_403_for_unauthorized_agent():
 async def test_api_delete_returns_403_for_unauthorized_agent():
     """DELETE with unauthorized agent returns 403."""
     import uuid
+
     from httpx import ASGITransport, AsyncClient
+
     import amp_server.main as main_mod
-    from amp_server.storage.chroma import ChromaAdapter
     from amp_server.lifecycle import LifecycleEngine
+    from amp_server.storage.chroma import ChromaAdapter
 
     main_mod._storage = ChromaAdapter(collection_name=f"test_{uuid.uuid4().hex[:12]}")
     main_mod._lifecycle = LifecycleEngine(main_mod._storage)
@@ -225,4 +226,3 @@ async def test_api_delete_returns_403_for_unauthorized_agent():
             headers={"X-AMP-Agent-ID": "agent-UNAUTHORIZED"},
         )
         assert del_resp.status_code == 403
-

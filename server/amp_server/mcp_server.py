@@ -3,25 +3,25 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 
 from mcp.server.fastmcp import FastMCP
 
+from amp_server.access_control import check_read_access, check_write_access
 from amp_server.models import (
+    LifecycleStatus,
+    MemoryAccessPolicy,
     MemoryCell,
-    MemoryType,
     MemoryContent,
     MemoryIdentity,
     MemoryLifecycle,
     MemoryScoring,
-    MemoryAccessPolicy,
+    MemoryType,
     OwnerType,
-    LifecycleStatus,
     SearchRequest,
 )
+from amp_server.storage.base import InvalidTransitionError, MemoryNotFoundError
 from amp_server.storage.chroma import ChromaAdapter
-from amp_server.access_control import check_read_access, check_write_access
 
 # Create the FastMCP server instance
 mcp = FastMCP("AMP")
@@ -37,7 +37,7 @@ def set_storage(storage_instance: ChromaAdapter | None) -> None:
 
 
 def get_storage() -> ChromaAdapter:
-    """Retrieve the storage instance (either injected or default persistent/ephemeral)."""
+    """Return the injected storage instance, or build a default one."""
     global _storage
     if _storage is None:
         persist_dir = os.environ.get("AMP_PERSIST_DIR")
@@ -64,7 +64,7 @@ async def amp_remember(
             created_by="mcp_client",
         ),
         lifecycle=MemoryLifecycle(
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             status=LifecycleStatus.ACTIVE,
         ),
         scoring=MemoryScoring(importance=importance),
@@ -95,7 +95,10 @@ async def amp_recall(
 
     lines = []
     for cell in results:
-        lines.append(f"- [{cell.type.value}] {cell.content.text} (created: {cell.lifecycle.created_at})")
+        lines.append(
+            f"- [{cell.type.value}] {cell.content.text} "
+            f"(created: {cell.lifecycle.created_at})"
+        )
     return "\n".join(lines)
 
 
@@ -105,7 +108,7 @@ async def amp_forget(memory_id: str, owner_id: str) -> str:
     storage = get_storage()
     try:
         cell = await storage._get_raw(memory_id)
-    except Exception:
+    except MemoryNotFoundError:
         return "Memory not found."
 
     if cell.identity.owner_id != owner_id:
@@ -116,11 +119,13 @@ async def amp_forget(memory_id: str, owner_id: str) -> str:
 
     try:
         # Step 1: Update status to archived
-        await storage.update(memory_id, {"lifecycle": {"status": LifecycleStatus.ARCHIVED.value}})
+        await storage.update(
+            memory_id, {"lifecycle": {"status": LifecycleStatus.ARCHIVED.value}}
+        )
         # Step 2: Mark deleted
         await storage.mark_deleted(memory_id)
         return f"Memory {memory_id} forgotten."
-    except Exception:
+    except (InvalidTransitionError, MemoryNotFoundError):
         return "Memory not found."
 
 
@@ -148,7 +153,10 @@ async def amp_list_memories(
 
     lines = []
     for cell in allowed_cells:
-        lines.append(f"- [{cell.type.value}] {cell.content.text} (created: {cell.lifecycle.created_at})")
+        lines.append(
+            f"- [{cell.type.value}] {cell.content.text} "
+            f"(created: {cell.lifecycle.created_at})"
+        )
     return "\n".join(lines)
 
 

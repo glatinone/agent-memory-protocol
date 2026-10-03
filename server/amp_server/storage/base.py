@@ -30,7 +30,6 @@ class InvalidTransitionError(Exception):
 
 
 class StorageAdapter(ABC):
-
     @abstractmethod
     async def save(self, cell: MemoryCell) -> str:
         """Persist a MemoryCell and return its id."""

@@ -1,0 +1,18 @@
+# Repo-root Ruff configuration, used for Python that the two packages do not
+# own (the demo scripts under examples/). server/ and sdk/ each carry their own
+# [tool.ruff] block in their pyproject.toml, and Ruff resolves configuration per
+# file, so this file governs everything they do not.
+#
+# This exists so `ruff check .` is deterministic: without a config in scope,
+# Ruff falls back to its own default rule set, which is not the one CI uses.
+target-version = "py311"
+line-length = 88
+
+# Ruff formats Python code fences inside Markdown too. Keeping that off means
+# `ruff format` never rewrites a prose file, and `ruff format --check .` locally
+# tests exactly what CI tests (`--check server sdk`) instead of also reporting
+# docs/ that no CI path filter covers.
+extend-exclude = ["*.md"]
+
+[lint]
+select = ["E", "F", "I", "UP", "B", "BLE"]

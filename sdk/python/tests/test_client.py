@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 import requests
 
 from amp_client.client import AMPClient
@@ -32,7 +33,11 @@ def test_remember_success(mock_request):
         "id": "mem_123",
         "type": "semantic",
         "content": {"text": "hello fact", "metadata": {}},
-        "identity": {"owner_id": "user_abc", "owner_type": "user", "created_by": "test_agent"},
+        "identity": {
+            "owner_id": "user_abc",
+            "owner_type": "user",
+            "created_by": "test_agent",
+        },
     }
     mock_request.return_value = mock_response
 
@@ -105,10 +110,7 @@ def test_forget_success(mock_request):
     mock_get.status_code = 200
     mock_get.json.return_value = {
         "id": "mem_123",
-        "lifecycle": {
-            "created_at": "2026-06-12T10:00:00Z",
-            "status": "active"
-        }
+        "lifecycle": {"created_at": "2026-06-12T10:00:00Z", "status": "active"},
     }
 
     mock_patch = MagicMock()
@@ -125,7 +127,7 @@ def test_forget_success(mock_request):
 
     assert res is True
     assert mock_request.call_count == 3
-    
+
     # Check GET call
     args_get, _ = mock_request.call_args_list[0]
     assert args_get[0] == "GET"

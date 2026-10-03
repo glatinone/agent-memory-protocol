@@ -1,0 +1,17 @@
+# Normalize line endings in the repository rather than per machine.
+#
+# Without this, the stored form depends on each contributor's
+# `core.autocrlf`/`core.eol`, so a Windows checkout can commit CRLF and the
+# next commit from Linux rewrites whole files to LF. `eol=lf` keeps the
+# working tree on one form everywhere, which is what CI (Ubuntu) runs against.
+* text=auto eol=lf
+
+# Assets are never line-ending converted.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
