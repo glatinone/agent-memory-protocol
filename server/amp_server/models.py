@@ -102,7 +102,7 @@ class MemoryCell(BaseModel):
         json_schema_extra={
             "example": {
                 "amp_version": "0.1.0",
-                "id": "01J5A3B7K9M2N4P6Q8R0S1T3V5",
+                "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5",
                 "type": "semantic",
                 "content": {
                     "text": "User prefers Python for backend development",
