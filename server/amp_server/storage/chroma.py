@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import fnmatch
 import json
 from datetime import UTC, datetime
 from typing import Any, cast
 
 import chromadb
 
+from amp_server.access_control import check_read_access
 from amp_server.models import (
     LifecycleStatus,
     MemoryCell,
@@ -76,21 +76,6 @@ def _as_list(value: Any) -> list[Any]:
 def _cell_from_metadata(meta: Any) -> MemoryCell:
     """Decode a cell from the single JSON blob stored as its Chroma metadata."""
     return _deserialize_cell(json.loads(str(meta[_CELL_JSON_KEY])))
-
-
-def _agent_can_read(cell: MemoryCell, agent_id: str) -> bool:
-    """Check if agent_id has read access to cell, per spec §8."""
-    if cell.access_policy.public:
-        return True
-    if agent_id == cell.identity.owner_id:
-        return True
-    if cell.identity.created_by and agent_id == cell.identity.created_by:
-        return True
-    return any(
-        fnmatch.fnmatch(agent_id, pattern)
-        for pattern in cell.access_policy.readable_by
-        if pattern != "owner"
-    )
 
 
 class ChromaAdapter(StorageAdapter):
@@ -212,7 +197,7 @@ class ChromaAdapter(StorageAdapter):
             if cell.lifecycle.status not in status_filter:
                 continue
 
-            if not _agent_can_read(cell, agent_id):
+            if not check_read_access(cell, agent_id):
                 continue
 
             # Chroma's cosine distance is 1 - cosine_similarity.

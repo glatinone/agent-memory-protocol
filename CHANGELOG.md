@@ -37,6 +37,14 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   "server unreachable" message.
 
 ### Fixed
+- **`search()` applied a different read rule from the REST and MCP endpoints.**
+  `storage/chroma.py` carried its own copy of the read check, and that copy
+  skipped any `readable_by` entry equal to the literal string `"owner"` while
+  `access_control.check_read_access` matched it like any other pattern. An agent
+  whose id is `owner` could read a cell through `GET /memories/{id}` but never
+  found it through `POST /memories/search`. Search now calls the shared rule and
+  the duplicate is deleted; `test_access_control.py` runs the agent-by-policy
+  matrix against both paths so they cannot drift apart again.
 - The `except Exception` blocks that swallowed JSON-decoding failures in both
   SDKs now catch `ValueError`, so an unexpected error is no longer hidden
   behind a generic HTTP message.

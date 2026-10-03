@@ -12,6 +12,7 @@ from amp_server.access_control import (
     enforce_read,
     enforce_write,
 )
+from amp_server.models import SearchRequest
 
 # ---------------------------------------------------------------------------
 # Read access
@@ -226,3 +227,69 @@ async def test_api_delete_returns_403_for_unauthorized_agent():
             headers={"X-AMP-Agent-ID": "agent-UNAUTHORIZED"},
         )
         assert del_resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Cross-surface agreement
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_search_applies_the_same_read_rule_as_check_read_access(storage):
+    """search() and the REST/MCP endpoints must agree on every agent.
+
+    They did not: storage/chroma.py carried its own copy of the read rule that
+    skipped any readable_by entry equal to the literal string "owner", while
+    access_control.check_read_access matched it like any other pattern. An
+    agent whose id is "owner" was therefore readable through GET but missing
+    from search results. Run the whole matrix so the two cannot drift again.
+    """
+    cell = make_cell(
+        owner_id="user-X",
+        created_by="agent-A",
+        readable_by=["agent_service_*", "owner"],
+        text="wildcard readable memory",
+    )
+    await storage.save(cell)
+
+    for agent in (
+        "user-X",  # owner
+        "agent-A",  # creator
+        "agent_service_v1",  # matches the wildcard
+        "owner",  # the literal that used to be filtered out
+        "agent_other",  # matched by nothing
+    ):
+        request = SearchRequest(
+            query="wildcard readable memory", owner_id="user-X", limit=10
+        )
+        results = await storage.search(request, agent_id=agent)
+        found_in_search = any(c.id == cell.id for c in results)
+        assert found_in_search == check_read_access(cell, agent), (
+            f"search() and check_read_access() disagree for agent {agent!r}"
+        )
+
+
+@pytest.mark.asyncio
+async def test_search_hides_a_cell_from_an_unrelated_agent(storage):
+    """The agreement above must not be satisfied by letting everyone through."""
+    cell = make_cell(
+        owner_id="user-X",
+        created_by="agent-A",
+        readable_by=["agent_service_*"],
+        text="restricted memory",
+    )
+    await storage.save(cell)
+
+    request = SearchRequest(query="restricted memory", owner_id="user-X", limit=10)
+    results = await storage.search(request, agent_id="agent_intruder")
+    assert results == []
+
+
+@pytest.mark.asyncio
+async def test_public_cell_is_returned_by_search_for_any_agent(storage):
+    cell = make_cell(public=True, readable_by=[], text="public memory")
+    await storage.save(cell)
+
+    request = SearchRequest(query="public memory", owner_id="user-123", limit=10)
+    results = await storage.search(request, agent_id="agent_anyone")
+    assert [c.id for c in results] == [cell.id]
