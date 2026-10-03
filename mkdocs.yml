@@ -30,6 +30,7 @@ exclude_docs: |
   devto-tags.md
   hn-submission.md
   launch-checklist.md
+  release-notes-v0.1.0.md
 
 nav:
   - Home: "index.md"
