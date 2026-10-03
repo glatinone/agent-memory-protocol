@@ -2,17 +2,17 @@
 
 ## How is AMP different from mem0 or Zep?
 
-mem0 and Zep are managed memory services with their own data models and proprietary APIs — using them locks your agents into a specific vendor and SDK. AMP is an open protocol: it defines a standard schema (the `MemoryCell`) and a standard REST API that any server can implement. You can run the reference server yourself, swap it for a compatible implementation, or build a hosted product on top of it without changing agent code.
+mem0 and Zep are managed memory services with their own data models and proprietary APIs - using them locks your agents into a specific vendor and SDK. AMP is an open protocol: it defines a standard schema (the `MemoryCell`) and a standard REST API that any server can implement. You can run the reference server yourself, swap it for a compatible implementation, or build a hosted product on top of it without changing agent code.
 
 ## Do I need to run my own server?
 
-For now, yes — there is no hosted AMP service yet (see [Is there a hosted version?](#is-there-a-hosted-version)). The reference server runs in a single `docker compose up -d` command and stores data locally. Self-hosting is intentional for Phase 0/1: it keeps your memory data under your control and lets you validate the protocol before a hosted tier is offered.
+For now, yes - there is no hosted AMP service yet (see [Is there a hosted version?](#is-there-a-hosted-version)). The reference server runs in a single `docker compose up -d` command and stores data locally. Self-hosting is intentional for Phase 0/1: it keeps your memory data under your control and lets you validate the protocol before a hosted tier is offered.
 
 ## Can I use AMP without the Python SDK?
 
 Yes. The Python SDK (`amp-client`) is a convenience wrapper, and it's not strictly required; everything it does is available directly via the REST API (`POST /amp/v1/memories`, `POST /amp/v1/memories/search`, etc.). Any HTTP client works: `curl`, `httpx`, `requests`, `fetch`, or any other language's HTTP library. The SDK itself isn't on PyPI yet; install it from a clone of the repo (`pip install -e sdk/`).
 
-## What happens to a deleted memory — is it gone forever?
+## What happens to a deleted memory - is it gone forever?
 
 No. `DELETE /amp/v1/memories/{id}` is a soft-delete: it sets `lifecycle.status` to `"deleted"` and excludes the cell from all search results. The cell remains in storage and can still be retrieved directly by its ID. There is no hard-delete endpoint in v0.1.0; permanent removal requires direct storage access.
 
@@ -28,7 +28,7 @@ The reference server runs `LifecycleEngine.process_all()` on a background schedu
 | `AMP_LIFECYCLE_INTERVAL_SECONDS` | `3600` | Seconds between runs |
 | `AMP_ADMIN_TOKEN` | *(unset)* | Enables `POST /amp/v1/lifecycle/run`; unset leaves it disabled (403) |
 
-If you would rather own the schedule — an external cron, a sidecar — set `AMP_LIFECYCLE_ENABLED=false` and have your job call `POST /amp/v1/lifecycle/run` with `X-AMP-Admin-Token`. You can slow decay by setting a low `decay_rate` (e.g. `0.001`) or reset it by bumping `importance` or `confidence` via a `PATCH`.
+If you would rather own the schedule - an external cron, a sidecar - set `AMP_LIFECYCLE_ENABLED=false` and have your job call `POST /amp/v1/lifecycle/run` with `X-AMP-Admin-Token`. You can slow decay by setting a low `decay_rate` (e.g. `0.001`) or reset it by bumping `importance` or `confidence` via a `PATCH`.
 
 ## Can two agents share the same memory cell?
 
@@ -36,7 +36,7 @@ Yes. Access is controlled by `access_policy.readable_by` and `access_policy.writ
 
 ## Does AMP work with LangChain / LlamaIndex?
 
-Yes! The Python SDK (`amp-client`) includes native `AMPMemory` integration for LangChain, allowing you to plug AMP directly into LangChain chains and agents as a chat memory provider. For LlamaIndex, you can wrap the AMP REST API or client in a custom retriever manually — the API is simple enough that this takes under 50 lines. Contributions for LlamaIndex or other frameworks are welcome; see [How do I contribute to the spec?](#how-do-i-contribute-to-the-spec).
+Yes! The Python SDK (`amp-client`) includes native `AMPMemory` integration for LangChain, allowing you to plug AMP directly into LangChain chains and agents as a chat memory provider. For LlamaIndex, you can wrap the AMP REST API or client in a custom retriever manually - the API is simple enough that this takes under 50 lines. Contributions for LlamaIndex or other frameworks are welcome; see [How do I contribute to the spec?](#how-do-i-contribute-to-the-spec).
 
 ## Is there a hosted version?
 
@@ -48,4 +48,4 @@ Spec changes are proposed as RFCs in `spec/rfcs/`. Open a pull request with a ne
 
 ## What's the difference between episodic, semantic, and procedural memory?
 
-These map to the standard cognitive science taxonomy. **Episodic** memories are specific past events — "the user asked about Python in session-789." **Semantic** memories are facts and preferences that don't belong to a specific moment — "the user prefers Python for backend work." **Procedural** memories are how-to knowledge — "to answer a coding question, first clarify the language, then ask about constraints." Use `type` to tag cells accordingly; search filters let you query a single type when you only want, say, factual knowledge without conversational history.
+These map to the standard cognitive science taxonomy. **Episodic** memories are specific past events - "the user asked about Python in session-789." **Semantic** memories are facts and preferences that don't belong to a specific moment - "the user prefers Python for backend work." **Procedural** memories are how-to knowledge - "to answer a coding question, first clarify the language, then ask about constraints." Use `type` to tag cells accordingly; search filters let you query a single type when you only want, say, factual knowledge without conversational history.

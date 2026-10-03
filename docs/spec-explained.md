@@ -8,7 +8,7 @@ This document explains the core architectural and conceptual elements of the AMP
 
 ## 1. The MemoryCell
 
-The atomic unit of storage in AMP is the **`MemoryCell`**. Every individual memory — whether a fact, a conversation reference, or a learned procedure — is represented as a single `MemoryCell` with a strict JSON structure.
+The atomic unit of storage in AMP is the **`MemoryCell`**. Every individual memory - whether a fact, a conversation reference, or a learned procedure - is represented as a single `MemoryCell` with a strict JSON structure.
 
 ### Anatomy of a MemoryCell
 
@@ -84,7 +84,7 @@ Where:
 ### Status Transitions
 
 1.  **`active`**: The starting state. The cell is fully searchable and accessible.
-2.  **`stale`**: When the `decay_score` falls **below `0.3`**, the cell automatically transitions to `stale`. Stale memories are excluded from default search queries unless explicitly requested. Reading a stale memory resets its clock, and once its `decay_score` is back at `0.3` or above — whether from that reset or a `scoring` `PATCH` — the lifecycle engine transitions it back to `active` on its next run.
+2.  **`stale`**: When the `decay_score` falls **below `0.3`**, the cell automatically transitions to `stale`. Stale memories are excluded from default search queries unless explicitly requested. Reading a stale memory resets its clock, and once its `decay_score` is back at `0.3` or above - whether from that reset or a `scoring` `PATCH` - the lifecycle engine transitions it back to `active` on its next run.
 3.  **`archived`**: If a memory remains in the `stale` state for **30 consecutive days** without any access or update, the lifecycle engine automatically transitions it to `archived` (cold storage). Cells in `archived` cannot transition back through the standard API; re-create the cell if you need it again.
 4.  **`deleted`**: A soft-deleted state triggered by `DELETE` on an `archived` cell. The cell is hidden from searches and standard reads. `deleted` is terminal through the API; the reference server cannot delete a cell that is still `active` or `stale`.
 

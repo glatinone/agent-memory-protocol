@@ -131,8 +131,8 @@ curl -X POST http://localhost:8765/amp/v1/memories \
 | `identity.owner_type` | `"user" \| "agent" \| "organization"` | Yes | Type of the owner |
 | `identity.created_by` | string | Yes | ID of the agent or system that created this memory |
 | `identity.session_id` | string | No | Session context in which memory was created |
-| `scoring.importance` | float [0–1] | No | How important this memory is (default: `0.5`) |
-| `scoring.confidence` | float [0–1] | No | Confidence in the memory's accuracy (default: `1.0`) |
+| `scoring.importance` | float [0-1] | No | How important this memory is (default: `0.5`) |
+| `scoring.confidence` | float [0-1] | No | Confidence in the memory's accuracy (default: `1.0`) |
 | `scoring.decay_rate` | float ≥ 0 | No | Daily decay rate for the lifecycle engine (default: `0.01`) |
 | `access_policy.readable_by` | string[] | No | IDs allowed to read this cell |
 | `access_policy.writable_by` | string[] | No | IDs allowed to modify this cell |
@@ -304,7 +304,7 @@ Any subset of the writable fields from the `MemoryCell` schema. Nested objects a
 
 Fields that cannot be patched: `id`, `amp_version`, `identity`, `lifecycle.created_at`.
 
-**Response `200 OK`** — the full updated cell
+**Response `200 OK`** - the full updated cell
 
 ```json
 {
@@ -392,7 +392,7 @@ Empty body.
 
 ## POST /memories/search
 
-Performs semantic (vector) search over active memory cells for a given owner. Results are ranked by a blend of vector similarity to the query (70%) and the cell's current decay score (30%, `spec/v0.1.0/lifecycle.md` §7 — `importance × confidence × e^(−decay_rate × Δt)`), so a fresher or more important cell can outrank a stale, lower-confidence one at similar relevance, but a highly relevant cell is never displaced by an unrelated-but-fresh one.
+Performs semantic (vector) search over active memory cells for a given owner. Results are ranked by a blend of vector similarity to the query (70%) and the cell's current decay score (30%, `spec/v0.1.0/lifecycle.md` §7 - `importance × confidence × e^(−decay_rate × Δt)`), so a fresher or more important cell can outrank a stale, lower-confidence one at similar relevance, but a highly relevant cell is never displaced by an unrelated-but-fresh one.
 
 **Request**
 
@@ -417,7 +417,7 @@ curl -X POST http://localhost:8765/amp/v1/memories/search \
 | `owner_id` | string | Yes | Only return cells belonging to this owner |
 | `types` | string[] | No | Filter to specific memory types. Omit to search all types |
 | `status` | string[] | No | Lifecycle statuses to include (default: `["active"]`) |
-| `limit` | int [1–100] | No | Maximum number of results to return (default: `10`) |
+| `limit` | int [1-100] | No | Maximum number of results to return (default: `10`) |
 | `include_stale` | bool | No | Shorthand to add `"stale"` to the status filter (default: `false`) |
 
 **Response `200 OK`**
@@ -569,7 +569,7 @@ The lifecycle engine computes a decay score on each cell to drive automatic `act
 score = importance × confidence × e^(−decay_rate × Δt_days)
 ```
 
-A cell transitions to `stale` when its score falls below `0.3`. A `stale` cell returns to `active` once its score rises back to `0.3` or above — which a re-read (resetting `last_accessed_at`) or a `scoring` `PATCH` can do. A `stale` cell still below threshold transitions to `archived` after 30 days without an update. These transitions are applied by the background scheduler, or on demand via [`POST /lifecycle/run`](#post-lifecyclerun).
+A cell transitions to `stale` when its score falls below `0.3`. A `stale` cell returns to `active` once its score rises back to `0.3` or above - which a re-read (resetting `last_accessed_at`) or a `scoring` `PATCH` can do. A `stale` cell still below threshold transitions to `archived` after 30 days without an update. These transitions are applied by the background scheduler, or on demand via [`POST /lifecycle/run`](#post-lifecyclerun).
 
 ---
 

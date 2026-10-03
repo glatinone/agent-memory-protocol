@@ -1,8 +1,8 @@
-# AMP — Agent Memory Protocol
+# AMP - Agent Memory Protocol
 
 **An open protocol for AI agent memory interoperability.**
 
-Like MCP for tool calling — but for memory.
+Like MCP for tool calling - but for memory.
 
 [![CI](https://github.com/glatinone/agent-memory-protocol/actions/workflows/ci.yml/badge.svg)](https://github.com/glatinone/agent-memory-protocol/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/glatinone/agent-memory-protocol/blob/master/LICENSE)
@@ -32,16 +32,16 @@ process that created it.
 
 ## Start here
 
-- [Getting Started](getting-started.md) — a server running and your first memory in five minutes
-- [Protocol Specification](spec-explained.md) — Memory Cells, state transitions, decay math
-- [API Reference](api-reference.md) — endpoints and payloads
-- [FAQ](faq.md) — common questions, and what the reference server does *not* yet do
+- [Getting Started](getting-started.md) - a server running and your first memory in five minutes
+- [Protocol Specification](spec-explained.md) - Memory Cells, state transitions, decay math
+- [API Reference](api-reference.md) - endpoints and payloads
+- [FAQ](faq.md) - common questions, and what the reference server does *not* yet do
 
 ## Status
 
 AMP is an early, honest reference implementation. The spec is `v0.1.0`, the SDK is not yet
 on PyPI (install from source), and the decay engine runs on a background schedule by
-default — the interval configurable, or the scheduler disabled for deployments that prefer
+default - the interval configurable, or the scheduler disabled for deployments that prefer
 to drive it themselves. The SDK's distribution status and the scheduler's defaults are
 tracked openly rather than glossed over.
 

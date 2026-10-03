@@ -15,20 +15,23 @@ Thank you for your interest in contributing to AMP! This guide will help you get
 
 ## Setting Up Your Development Environment
 
-To start developing, ensure you have Python 3.10+ installed. Then, clone the repository and install the package in editable mode along with development dependencies:
+To start developing, ensure you have Python 3.11+ installed. Then, clone the repository and install the package in editable mode along with development dependencies:
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/amp.git
-cd amp
+git clone https://github.com/glatinone/agent-memory-protocol.git
+cd agent-memory-protocol
 
 # Create and activate a virtual environment (optional but recommended)
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Install the package and dev dependencies
+# Install the server package and dev dependencies
+cd server
 pip install -e ".[dev]"
 ```
+
+The SDK is a separate package under `sdk/`; install it the same way (`cd sdk && pip install -e ".[dev,langchain]"`) if you are working on the client.
 
 ---
 
@@ -36,19 +39,20 @@ pip install -e ".[dev]"
 
 We use `pytest` for running our test suite. Make sure your changes do not break any existing tests and that you write tests for any new features or bug fixes.
 
-To run the entire test suite:
+To run the server test suite:
 ```bash
-pytest tests/
+# from server/
+pytest -v
 ```
 
-To run a specific test file:
+To run a specific test file (from `server/`):
 ```bash
-pytest tests/test_example.py
+pytest tests/test_memory_crud.py -v
 ```
 
-To run tests with coverage reporting:
+To run the SDK tests (from `sdk/`):
 ```bash
-pytest --cov=amp tests/
+pytest -v python/tests
 ```
 
 ---
@@ -64,7 +68,7 @@ We follow a typical Git branch workflow for all changes:
    git checkout -b bugfix/issue-id-description
    ```
 2. **Implement Changes:** Write your code, adding documentation and tests as needed.
-3. **Verify Locally:** Run the tests using `pytest` and check code formatting/style.
+3. **Verify Locally:** Run the relevant `pytest` suite (see above) and check code style.
 4. **Push & Create PR:** Push your branch to GitHub and open a Pull Request.
 5. **Link Issues:** In your PR description, link any related issues (e.g., `Closes #123` or `Fixes #456`).
 6. **Review & Iterate:** Wait for review from the project maintainers and address any feedback.
@@ -76,11 +80,8 @@ We follow a typical Git branch workflow for all changes:
 To keep the codebase clean, consistent, and maintainable, we adhere to the following:
 
 - **PEP 8:** We follow PEP 8 styling conventions.
-- **Formatter (Black):** We use `black` for auto-formatting code. You can format code with:
-  ```bash
-  black amp/ tests/
-  ```
 - **Type Hints:** We encourage and require type hints for all new functions, methods, and classes to ensure type safety and aid editor completion.
+- **Tests:** Any behavioral change needs a test. See the existing suites under `server/tests/` and `sdk/python/tests/` for the patterns in use.
 
 ---
 

@@ -1,6 +1,6 @@
 # Quickstart
 
-There's no standalone script in this directory yet — the quickstart walkthrough
+There's no standalone script in this directory yet - the quickstart walkthrough
 lives in two places, both verified against the real server/client:
 
 - The root [README.md](../../README.md#quick-start-in-3-steps) for the

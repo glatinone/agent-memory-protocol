@@ -3,11 +3,11 @@
 Thank you for your interest in contributing to AMP. Contributions can target
 either the protocol specification or the reference implementation:
 
-- **Spec** (`spec/`) — the schema and normative behavior of the protocol
+- **Spec** (`spec/`) - the schema and normative behavior of the protocol
   (e.g. `spec/v0.1.0/memory-cell.schema.json`, `spec/v0.1.0/lifecycle.md`).
-- **Reference server** (`server/`) — the FastAPI-based reference
+- **Reference server** (`server/`) - the FastAPI-based reference
   implementation (`amp_server`).
-- **SDK** (`sdk/`) — the client library used by agents to talk to an AMP
+- **SDK** (`sdk/`) - the client library used by agents to talk to an AMP
   server.
 
 ## Before You Start
@@ -26,12 +26,12 @@ either the protocol specification or the reference implementation:
    merge.
 3. If your change amends or clarifies existing behavior defined in the spec,
    reference the relevant section number/heading of the spec document being
-   amended (e.g. "Amends `spec/v0.1.0/lifecycle.md` §3.2 — decay transition
+   amended (e.g. "Amends `spec/v0.1.0/lifecycle.md` §3.2 - decay transition
    timing") in your PR description and, where useful, in code comments.
 4. Follow the existing Python style used in the codebase you are touching
    (`server/` and `sdk/` are both standard Python packages configured via
    `pyproject.toml`). Match the conventions already present in the file you
-   are editing rather than introducing a new style — this includes naming,
+   are editing rather than introducing a new style - this includes naming,
    typing, docstring conventions, and import ordering.
 5. Add or update tests for any behavioral change. Untested behavioral
    changes are unlikely to be merged.
@@ -63,7 +63,7 @@ should have both suites passing.
 
 Before requesting review, make sure your PR:
 
-- [ ] Contains one logical change (spec amendment, bug fix, or feature —
+- [ ] Contains one logical change (spec amendment, bug fix, or feature -
       not a mix)
 - [ ] Passes `pytest -v` for every package it touches (`server/`, `sdk/`)
 - [ ] References the relevant spec section number if it amends existing
@@ -82,5 +82,5 @@ Security Advisories.
 ## Questions
 
 If anything about contributing to the spec vs. the implementation is
-unclear, open an issue and ask — we're happy to point you in the right
+unclear, open an issue and ask - we're happy to point you in the right
 direction.

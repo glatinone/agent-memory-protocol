@@ -1,6 +1,6 @@
 # Show HN Submission Text
 
-**Title:** Show HN: AMP — An open protocol for AI agent memory (like MCP but for memory)
+**Title:** Show HN: AMP - An open protocol for AI agent memory (like MCP but for memory)
 
 **Body:**
 
@@ -8,7 +8,7 @@ Hi HN,
 
 We've been building multi-agent systems recently, and we hit a major bottleneck: memory fragmentation. 
 
-If you build an agent in LangChain, it writes memory in LangChain's format. If you build another agent in LlamaIndex, it uses LlamaIndex's formats. If you want them to share memory or context, you're forced to write complex, custom sync layers or lock yourself into a single framework. Furthermore, existing memory services are proprietary, managed platforms with vendor-lock APIs.
+If you build an agent in LangChain, it writes memory in LangChain's format. If you build another agent in LlamaIndex, it uses LlamaIndex's formats. If you want them to share memory or context, you're forced to write complex, custom sync layers or lock yourself into a single framework. And existing memory services are proprietary, managed platforms with vendor-lock APIs.
 
 We wanted to solve this by creating a simple, open standard, similar to what MCP (Model Context Protocol) is doing for tool-calling.
 
@@ -17,7 +17,7 @@ We call it **AMP (Agent Memory Protocol)**.
 AMP decouples memory from agent frameworks by defining:
 1. A standard, self-describing **Memory Cell** schema (in JSON).
 2. A clean, HTTP-native **REST API** (`POST /memories`, `POST /memories/search`, etc.).
-3. A **Lifecycle & Decay Engine** that scores memories with an exponential decay formula (importance, confidence, and time) and moves them from `active` to `stale` to `archived`, shipped in the reference server as a `LifecycleEngine` class you run on a schedule.
+3. A **Lifecycle & Decay Engine** that scores memories with an exponential decay formula (importance, confidence, and time) and moves them from `active` to `stale` to `archived`. The reference server runs it on a background schedule by default, so decay is live out of the box; the interval is configurable and an admin endpoint lets you trigger a pass on demand.
 4. Per-cell **Access Policies** (`readable_by`, `writable_by` lists supporting wildcards) so agents can securely share memory in multi-agent networks.
 5. A deletion lifecycle with a 30-day GDPR audit-retention window before physical purge; the spec also allows implementations to use cryptographic erasure (key destruction) at delete time instead of delayed purge, for cells storing sensitive content encrypted at rest.
 

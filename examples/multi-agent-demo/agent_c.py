@@ -1,4 +1,4 @@
-"""Agent C — Marketing Agent example demonstrating AMP access control."""
+"""Agent C - Marketing Agent example demonstrating AMP access control."""
 
 import requests
 
@@ -38,7 +38,7 @@ if __name__ == "__main__":
     try:
         results = agent.try_access("user_123")
         if len(results) == 0:
-            print("Agent C retrieved 0 memories — access control working correctly")
+            print("Agent C retrieved 0 memories - access control working correctly")
         else:
             print("Error: Agent C retrieved memories it shouldn't have access to!")
     except Exception as e:

@@ -1,4 +1,4 @@
-# AMP: An open protocol for AI agent memory — like MCP, but for memory
+# AMP: An open protocol for AI agent memory, like MCP but for memory
 
 We are in the golden age of AI agents. From autonomous coding assistants to multi-agent customer support workflows, agents are transitioning from simple prompt-response loops to complex, stateful systems. 
 
@@ -10,7 +10,7 @@ Today, we're introducing **AMP (Agent Memory Protocol)**: an open, HTTP-native p
 
 ### The Problem: Fragmented Agent Memory
 
-In the current ecosystem, memory is highly fragmented. Every framework—whether it is LangChain, LlamaIndex, CrewAI, AutoGen, or bespoke setups like `mem0`—handles agent memory in its own proprietary way. Some store chat history in local JSON lists, others plug directly into vector databases using ad-hoc schemas, and some rely on custom graph databases.
+In the current ecosystem, memory is highly fragmented. Every framework (whether it is LangChain, LlamaIndex, CrewAI, AutoGen, or bespoke setups like `mem0`) handles agent memory in its own proprietary way. Some store chat history in local JSON lists, others plug directly into vector databases using ad-hoc schemas, and some rely on custom graph databases.
 
 This fragmentation creates three major challenges for developers:
 1. **Framework Lock-in**: Sharing memory between a LangChain agent and a LlamaIndex agent requires building custom ETL pipelines. They speak completely different memory languages.
@@ -26,7 +26,7 @@ When developers try to solve these problems today, they usually wrap raw vector 
 - **Vendor Lock-in**: Managed memory APIs lock your agent's state behind proprietary APIs, making cloud migrations or on-premise deployments extremely difficult.
 - **Raw Vector Databases**: A vector DB is not a protocol; it lacks built-in understanding of agent identity, temporal decay, or access permissions.
 - **Lack of Lifecycle Decay**: Memory should fade over time. Implementing linear or exponential decay models requires writing complex scheduler engines and background jobs from scratch.
-- **Missing Access Control Lists (ACLs)**: Multi-agent security is crucial. Preventing unauthorized agents from reading sensitive billing or personal data requires writing custom database-level access layers.
+- **Missing Access Control Lists (ACLs)**: Multi-agent security matters. Preventing unauthorized agents from reading sensitive billing or personal data requires writing custom database-level access layers.
 
 ---
 
@@ -36,11 +36,11 @@ AMP solves these problems by decoupling agent execution from memory storage. It 
 
 At the core of AMP are three main components:
 
-1. **The Memory Cell Schema (`MemoryCell`)**: A robust, JSON-standardized data model. Each cell defines memory content, metadata, identity (owner and creator), scoring (importance and decay rate), access policies (agent ACLs), and provenance.
+1. **The Memory Cell Schema (`MemoryCell`)**: A strict, JSON-standardized data model. Each cell defines memory content, metadata, identity (owner and creator), scoring (importance and decay rate), access policies (agent ACLs), and provenance.
 
 2. **HTTP-Native API**: AMP exposes a simple REST API (under `/amp/v1/memories`, `/amp/v1/memories/search`, `/amp/v1/memories/{id}`) that makes writing and querying memory as simple as sending a JSON payload. Access control is declared on each memory cell and enforced at the gateway layer using standard request headers like `X-AMP-Agent-ID`.
 
-3. **Lifecycle and Decay Engine**: every memory cell has an importance score that decays over time based on a customizable decay rate. The reference server ships a `LifecycleEngine` that evaluates this decay formula and moves cells through `active` → `stale` → `archived`, so context that's no longer relevant can be excluded from search without a manual cleanup pass.
+3. **Lifecycle and Decay Engine**: every memory cell has an importance score that decays over time based on a customizable decay rate. The reference server ships a `LifecycleEngine` that evaluates this decay formula and moves cells through `active` -> `stale` -> `archived`, so context that's no longer relevant can be excluded from search without a manual cleanup pass. The server runs it on a background schedule by default (configurable interval, or disable it and drive it yourself via an admin endpoint), so decay is on out of the box rather than something you have to wire up.
 
 ---
 
@@ -58,15 +58,15 @@ $ python examples/multi-agent-demo/run_demo.py
 
 [AGENT A]
 CustomerServiceAgent received: 'User prefers email correspondence.'
-Stored preference memory ID: mem_01J0X1F8N93M4P6Q8R0S1T3V5
+Stored preference memory ID: mem_01M405R0HS566J9DZDRESG4HV2
 
 [AGENT B]
 BillingAgent assisted user: user_123
-Retrieved response: "I will make sure to send all future billing communications and invoices to your email address, as per your preference."
+Retrieved response: "I see you prefer email, so I will send your bill there."
 
 [AGENT C]
 MarketingAgent try_access results: 0 memories retrieved
-Agent C retrieved 0 memories — access control working correctly
+Agent C retrieved 0 memories - access control working correctly
 
 [SUMMARY]
 AMP Demo complete. Two agents shared memory. One was blocked.

@@ -13,8 +13,8 @@ This project has not yet made a tagged release; entries below are grouped as
   launch blocker: `LifecycleEngine.process_all()` was fully implemented and
   unit-tested but nothing ever called it, so a fresh `docker compose up -d`
   never transitioned a cell's status. It is now driven by a background asyncio
-  task started from the FastAPI `lifespan` — on by default, cancelled cleanly on
-  shutdown — answering the schedule `spec/v0.1.0/lifecycle.md` leaves
+  task started from the FastAPI `lifespan` - on by default, cancelled cleanly on
+  shutdown - answering the schedule `spec/v0.1.0/lifecycle.md` leaves
   implementation-defined.
   - `POST /amp/v1/lifecycle/run` triggers one pass on demand, gated on
     `AMP_ADMIN_TOKEN`; unset means the route is disabled (`403`), not open. This
@@ -25,7 +25,7 @@ This project has not yet made a tagged release; entries below are grouped as
   - `GET /spec` now advertises the scheduler state and the manual-run endpoint.
   - A failing run is logged and swallowed, so one storage error cannot silently
     end all decay for the process lifetime.
-  - `configure_logging()` — uvicorn configures only `uvicorn.*` loggers and
+  - `configure_logging()` - uvicorn configures only `uvicorn.*` loggers and
     never the root logger, so every `amp_server.*` log line (including the
     scheduler's start and run records, the only way to tell the scheduler is
     alive) went nowhere.
@@ -33,15 +33,15 @@ This project has not yet made a tagged release; entries below are grouped as
 ### Fixed
 - **`stale → active` reactivation was implemented nowhere.** `spec/v0.1.0/
   lifecycle.md` §2 says a `stale` cell whose decay score is raised back above
-  `0.3` — by a `scoring` `PATCH`, or by a `GET` that resets `last_accessed_at`
-  — returns to `active` on the next engine run, and `docs/spec-explained.md`
+  `0.3` - by a `scoring` `PATCH`, or by a `GET` that resets `last_accessed_at`
+  - returns to `active` on the next engine run, and `docs/spec-explained.md`
   already told readers that. `LifecycleEngine.evaluate_cell()` had branches for
   `active → stale`, `stale → archived`, and terminal `deleted`, but none for
   this, so a `stale` cell stayed `stale` until it was archived. Added, with
   tests; `process_all()` now also always reports a `stale_to_active` count.
 - Removed `apscheduler>=3.10.0` from `server/pyproject.toml`. It was declared
   but imported nowhere in the repo; the scheduler is a plain asyncio task, so
-  the dependency was unused surface — and a needless CVE exposure in a
+  the dependency was unused surface - and a needless CVE exposure in a
   security-conscious reference implementation.
 - `docs/api-reference.md` described `GET /spec` as returning a "spec URL" and
   showed a response body without the `capabilities` fields the endpoint has
@@ -53,7 +53,7 @@ This project has not yet made a tagged release; entries below are grouped as
   the `AMP_LIFECYCLE_*` knobs.
 - `README.md`'s top-line pitch and the Comparison table both described the
   decay-archival lifecycle as "automatic... out of the box," which was true
-  of the *spec* but not of the reference server at the time — `LifecycleEngine
+  of the *spec* but not of the reference server at the time - `LifecycleEngine
   .process_all()` was implemented and unit-tested, but nothing in
   `amp_server/main.py` called it, so a fresh `docker compose up -d` never
   transitioned a cell's status on its own. That pass reworded both spots to
@@ -65,16 +65,16 @@ This project has not yet made a tagged release; entries below are grouped as
 - CI (`pip install -e .[dev]`, no lockfile) started failing with
   `ModuleNotFoundError: No module named 'mcp.server.fastmcp'` once the MCP
   Python SDK's 2.0.0 stable release renamed `FastMCP` to `MCPServer` and
-  restructured `mcp.server` — a pervasive breaking rework, not a simple
+  restructured `mcp.server` - a pervasive breaking rework, not a simple
   rename. The local dev environment never hit this because `uv.lock`
   already pinned `mcp==1.28.1`. Pinned `server/pyproject.toml`'s dependency
   to `mcp>=1.28.1,<2` rather than migrating `amp_server/mcp_server.py` to
   the new v2 API in the same pass. Verified with a clean `pip install`
   matching CI's exact steps: resolves `mcp==1.29.0`, all 57 tests pass.
-  Migrating to the v2 API is real, separate work — see TODO.
+  Migrating to the v2 API is real, separate work - see TODO.
 - **`ChromaAdapter.search()` ranked purely by raw vector distance and never
   read `compute_decay_score()`, even though the decay formula
-  (`spec/v0.1.0/lifecycle.md` §7 — `importance × confidence ×
+  (`spec/v0.1.0/lifecycle.md` §7 - `importance × confidence ×
   e^(−decay_rate × Δt)`) is the project's stated differentiator.** Confirmed
   by reading `search()` end to end: it queried Chroma for exactly
   `request.limit` results by similarity alone and never fetched distances,
@@ -84,7 +84,7 @@ This project has not yet made a tagged release; entries below are grouped as
   important one. `search()` now queries the full collection, blends cosine
   similarity with `compute_decay_score()` (70% similarity / 30% decay, see
   `amp_server/storage/chroma.py`), and re-ranks before truncating to
-  `limit` — relevance still dominates (an irrelevant-but-fresh cell does
+  `limit` - relevance still dominates (an irrelevant-but-fresh cell does
   not outrank a genuinely relevant one), but a fresher/more important cell
   now breaks a near-tie in its favor. 2 new tests covering both directions
   (57 passing, was 55).
@@ -98,12 +98,12 @@ This project has not yet made a tagged release; entries below are grouped as
   and `[tool.pytest.ini_options] asyncio_mode = "auto"`. Previously, running
   `pytest` against the SDK's own test suite with only `pytest` installed
   failed 6 of 14 tests (`test_async_client.py`) with "async def functions are
-  not natively supported" — a missing test dependency, not a code bug.
+  not natively supported" - a missing test dependency, not a code bug.
 
 ### Fixed
 - `amp-server` console script (`server/pyproject.toml`) pointed at
-  `amp_server.main:app` — the FastAPI ASGI app object itself, not a callable
-  entry point — so running `amp-server` crashed immediately with
+  `amp_server.main:app` - the FastAPI ASGI app object itself, not a callable
+  entry point - so running `amp-server` crashed immediately with
   `TypeError: FastAPI.__call__() missing 3 required positional arguments`.
   Added a real `main()` in `amp_server/main.py` that runs the app with
   `uvicorn.run(...)` (host/port overridable via `AMP_HOST`/`AMP_PORT`), and
@@ -111,7 +111,7 @@ This project has not yet made a tagged release; entries below are grouped as
   and serves `/amp/v1/health` and `/amp/v1/spec` correctly.
 - `README.md`'s Build Status and PyPI version badges pointed at a GitHub org
   (`AMP-Protocol`) and a PyPI package (`amp-client`) that do not exist
-  (verified via direct API/PyPI lookups — both 404). Removed both; replaced
+  (verified via direct API/PyPI lookups - both 404). Removed both; replaced
   with a real, live CI badge (now that CI exists) and an explicit "not yet on
   PyPI, install from source" callout, matching the honesty bar the rest of
   the portfolio holds itself to.
@@ -119,18 +119,18 @@ This project has not yet made a tagged release; entries below are grouped as
   `../SPEC.md`, a file that has never existed in this repo (the real content
   lives in `spec/v0.1.0/`). Fixed both to point at the real files. Same wrong
   link existed in `docs/api-reference.md`'s and `docs/hn-submission.md`'s
-  copy — only the actively-linked `docs/api-reference.md` was corrected this
+  copy - only the actively-linked `docs/api-reference.md` was corrected this
   pass; the launch-only drafts are noted as a known gap below.
 - `docs/getting-started.md` told readers to `git clone
   https://github.com/AMP-Protocol/amp.git` (nonexistent org) and `pip install
-  amp-client` (nonexistent package) — corrected to the real clone URL and an
+  amp-client` (nonexistent package) - corrected to the real clone URL and an
   install-from-source instruction.
 - `docs/api-reference.md`'s documented `GET /spec` response
   (`{"amp_version", "spec_url"}`) didn't match what the endpoint actually
   returns (`{"amp_version", "capabilities": {...}}`, verified directly
   against the running server). Corrected.
 - `examples/mcp-claude-desktop/mcp_config.json` set `AMP_STORAGE_PATH` (not a
-  variable either `main.py` or `mcp_server.py` reads — both read
+  variable either `main.py` or `mcp_server.py` reads - both read
   `AMP_PERSIST_DIR`) and hardcoded a `cwd` pointing at a personal local path
   (`D:/50_Projects/...`) that would not exist on any other machine. Fixed the
   env var name and removed the machine-specific `cwd`.
@@ -168,11 +168,11 @@ This project has not yet made a tagged release; entries below are grouped as
 
 ### Known gaps (not fixed this pass, documented rather than silently carried)
 - ~~`LifecycleEngine.process_all()` is fully implemented and unit-tested, but
-  nothing in `amp_server/main.py` ever calls it.~~ **Resolved 2026-10-03** — see
+  nothing in `amp_server/main.py` ever calls it.~~ **Resolved 2026-10-03** - see
   the scheduler entry under `[Unreleased]` → Added. The reference server now
   runs it on a configurable interval and exposes an admin-gated manual-run
   route.
 - ~~`sdk/python/amp/` is a thin, unbuilt re-export shim that isn't wired into
   `sdk/pyproject.toml`'s build, so installing `amp-client` does not make
-  `import amp` work.~~ **Resolved 2026-10-03** — the shim was deleted; it was
+  `import amp` work.~~ **Resolved 2026-10-03** - the shim was deleted; it was
   referenced by nothing, and `sdk/amp_client/` is the real package.

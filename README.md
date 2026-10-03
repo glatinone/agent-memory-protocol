@@ -1,8 +1,8 @@
-# AMP — Agent Memory Protocol
+# AMP - Agent Memory Protocol
 
 **An open protocol for AI agent memory interoperability.**
 
-Like MCP for tool calling — but for memory.
+Like MCP for tool calling - but for memory.
 
 [![CI](https://github.com/glatinone/agent-memory-protocol/actions/workflows/ci.yml/badge.svg)](https://github.com/glatinone/agent-memory-protocol/actions/workflows/ci.yml)
 [![Docs](https://github.com/glatinone/agent-memory-protocol/actions/workflows/docs.yml/badge.svg)](https://glatinone.github.io/agent-memory-protocol/)
@@ -11,7 +11,7 @@ Like MCP for tool calling — but for memory.
 
 📖 **Documentation: [glatinone.github.io/agent-memory-protocol](https://glatinone.github.io/agent-memory-protocol/)**
 
-> **Not yet on PyPI.** `pip install amp-client` in the steps below doesn't work yet — install
+> **Not yet on PyPI.** `pip install amp-client` in the steps below doesn't work yet - install
 > the SDK from source instead: `pip install -e sdk/` from a clone of this repo.
 
 ---
@@ -20,7 +20,7 @@ Like MCP for tool calling — but for memory.
 
 AMP (Agent Memory Protocol) is an open, HTTP-native protocol for storing, retrieving, and sharing structured memory between AI agents across frameworks, vendors, and sessions. 
 
-With AMP, agents can read and write to a shared memory tier using a standardized **Memory Cell** schema. It handles built-in access control, decay-ranked semantic search, and an `active` → `stale` → `archived` decay lifecycle — the reference server runs the decay engine on a schedule by default (see the [FAQ](docs/faq.md#how-does-decay-work-in-plain-english) for the interval and how to disable it).
+With AMP, agents can read and write to a shared memory tier using a standardized **Memory Cell** schema. It handles built-in access control, decay-ranked semantic search, and an `active` → `stale` → `archived` decay lifecycle - the reference server runs the decay engine on a schedule by default (see the [FAQ](docs/faq.md#how-does-decay-work-in-plain-english) for the interval and how to disable it).
 
 ---
 
@@ -33,15 +33,15 @@ $ python examples/multi-agent-demo/run_demo.py
 
 [AGENT A]
 CustomerServiceAgent received: 'User prefers email correspondence.'
-Stored preference memory ID: mem_01J0X1F8N93M4P6Q8R0S1T3V5
+Stored preference memory ID: mem_01M405R0HS566J9DZDRESG4HV2
 
 [AGENT B]
 BillingAgent assisted user: user_123
-Retrieved response: "I will make sure to send all future billing communications and invoices to your email address, as per your preference."
+Retrieved response: "I see you prefer email, so I will send your bill there."
 
 [AGENT C]
 MarketingAgent try_access results: 0 memories retrieved
-Agent C retrieved 0 memories — access control working correctly
+Agent C retrieved 0 memories - access control working correctly
 
 [SUMMARY]
 AMP Demo complete. Two agents shared memory. One was blocked.
@@ -54,7 +54,7 @@ AMP Demo complete. Two agents shared memory. One was blocked.
 Start the server, install the SDK client, and run the multi-agent demo in less than 5 minutes.
 
 ### Step 1: Install the SDK Client
-Not yet on PyPI — install from a clone of this repo:
+Not yet on PyPI - install from a clone of this repo:
 ```bash
 pip install -e sdk/
 ```

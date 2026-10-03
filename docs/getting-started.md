@@ -37,7 +37,7 @@ uvicorn amp_server.main:app --host 0.0.0.0 --port 8765
 
 ## 2. Your first memory
 
-Three commands — create, search, delete.
+Three commands - create, search, delete.
 
 **Create a memory**
 
@@ -57,7 +57,7 @@ curl -X POST http://localhost:8765/amp/v1/memories \
   }'
 ```
 
-Copy the `id` from the response — you'll need it in a moment.
+Copy the `id` from the response - you'll need it in a moment.
 
 ```json
 {
@@ -102,7 +102,7 @@ Deletion is a soft-delete: `lifecycle.status` is set to `"deleted"` and the cell
 
 ## 3. Python quickstart
 
-The official Python SDK client package `amp-client` makes it easy to integrate AMP into your python-based agents. Not yet on PyPI — install from a clone of this repo:
+The official Python SDK client package `amp-client` makes it easy to integrate AMP into your python-based agents. Not yet on PyPI - install from a clone of this repo:
 
 ```bash
 pip install -e sdk/

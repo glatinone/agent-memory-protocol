@@ -51,7 +51,7 @@ def main():
         results = agent_c.try_access(user_id)
         print(f"MarketingAgent try_access results: {len(results)} memories retrieved")
         if len(results) == 0:
-            print("Agent C retrieved 0 memories — access control working correctly")
+            print("Agent C retrieved 0 memories - access control working correctly")
         else:
             print("WARNING: Agent C bypassed access control!")
     except Exception as e:
