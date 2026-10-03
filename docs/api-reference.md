@@ -17,9 +17,33 @@ All endpoints accept and return JSON. Memory-cell access control is expressed vi
 | POST | `/memories` | Create a memory cell |
 | GET | `/memories/{memory_id}` | Retrieve a memory cell by ID |
 | PATCH | `/memories/{memory_id}` | Update fields on a memory cell |
-| DELETE | `/memories/{memory_id}` | Soft-delete a memory cell |
+| DELETE | `/memories/{memory_id}` | Soft-delete a memory cell (the cell must be `archived` first) |
+| GET | `/memories` | List memory cells by `owner_id` and `type` |
+| GET | `/memories/query` | Alias of `GET /memories` |
 | POST | `/memories/search` | Semantic search over memory cells |
 | POST | `/lifecycle/run` | Run one decay pass now (admin token required) |
+
+---
+
+## Machine-readable contract
+
+The table above is prose. The contract itself is
+[`spec/v0.1.0/openapi.json`](https://github.com/glatinone/agent-memory-protocol/blob/master/spec/v0.1.0/openapi.json),
+generated from the reference server and committed, and a running server serves the
+same document at `/openapi.json` (with interactive docs at `/docs`).
+
+It is committed rather than only served so that a change to the API surface shows
+up as a reviewable diff, and two tests keep it honest: one on the server, one in
+the SDK. Errors are part of the contract too - every route declares the `401`,
+`403` and `409` responses it can return, using the same
+`{"error": {"code", "message", "details"}}` envelope on all of them.
+
+If you are implementing AMP elsewhere, the fastest way to know where you stand is
+the [conformance suite](https://github.com/glatinone/agent-memory-protocol/blob/master/conformance/README.md):
+
+```bash
+amp-conformance --base-url https://your-server.example.com
+```
 
 ---
 

@@ -22,6 +22,7 @@ from amp_server.errors import (
 )
 from amp_server.lifecycle import LifecycleEngine
 from amp_server.models import (
+    ErrorResponse,
     LifecycleStatus,
     MemoryAccessPolicy,
     MemoryCell,
@@ -124,7 +125,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AMP Server",
     version=AMP_VERSION,
-    description="Agent Memory Protocol — Reference Server Implementation",
+    description="Agent Memory Protocol reference server implementation",
     lifespan=lifespan,
 )
 
@@ -145,6 +146,30 @@ async def _amp_error_handler(request: Request, exc: AMPError) -> JSONResponse:
     building its own, and so route handlers can stay annotated `-> dict`.
     """
     return JSONResponse(status_code=exc.status_code, content=exc.to_response())
+
+
+# The error envelope is part of the protocol, so it belongs in the contract
+# rather than being left out of it: without these, `openapi.json` would document
+# only the success path and a generated client would have nothing to type its
+# error handling against.
+_MISSING_AGENT_ID: dict[int | str, dict[str, Any]] = {
+    401: {
+        "model": ErrorResponse,
+        "description": "X-AMP-Agent-ID header is required",
+    }
+}
+_ACCESS_DENIED: dict[int | str, dict[str, Any]] = {
+    403: {
+        "model": ErrorResponse,
+        "description": "Access denied; also returned when the cell does not exist",
+    }
+}
+_INVALID_TRANSITION: dict[int | str, dict[str, Any]] = {
+    409: {
+        "model": ErrorResponse,
+        "description": "The lifecycle transition is not permitted by the spec",
+    }
+}
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +204,7 @@ async def spec() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-@router.post("/lifecycle/run")
+@router.post("/lifecycle/run", responses=_ACCESS_DENIED)
 async def run_lifecycle_now(
     x_amp_admin_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
@@ -203,7 +228,7 @@ async def run_lifecycle_now(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/memories", status_code=201)
+@router.post("/memories", status_code=201, responses=_MISSING_AGENT_ID)
 async def create_memory(
     body: MemoryCellCreate,
     x_amp_agent_id: str | None = Header(default=None),
@@ -238,7 +263,7 @@ async def create_memory(
     return cell.model_dump(mode="json")
 
 
-@router.get("/memories/{memory_id}")
+@router.get("/memories/{memory_id}", responses=_MISSING_AGENT_ID | _ACCESS_DENIED)
 async def get_memory(
     memory_id: str,
     x_amp_agent_id: str | None = Header(default=None),
@@ -265,7 +290,10 @@ async def get_memory(
     return cell.model_dump(mode="json")
 
 
-@router.patch("/memories/{memory_id}")
+@router.patch(
+    "/memories/{memory_id}",
+    responses=_MISSING_AGENT_ID | _ACCESS_DENIED | _INVALID_TRANSITION,
+)
 async def update_memory(
     memory_id: str,
     body: MemoryCellUpdate,
@@ -294,7 +322,11 @@ async def update_memory(
     return updated.model_dump(mode="json")
 
 
-@router.delete("/memories/{memory_id}")
+@router.delete(
+    "/memories/{memory_id}",
+    status_code=204,
+    responses=_MISSING_AGENT_ID | _ACCESS_DENIED | _INVALID_TRANSITION,
+)
 async def delete_memory(
     memory_id: str,
     x_amp_agent_id: str | None = Header(default=None),
@@ -324,8 +356,8 @@ async def delete_memory(
     return Response(status_code=204)
 
 
-@router.get("/memories")
-@router.get("/memories/query")
+@router.get("/memories", responses=_MISSING_AGENT_ID)
+@router.get("/memories/query", responses=_MISSING_AGENT_ID)
 async def query_memories(
     owner_id: str | None = None,
     type: MemoryType | None = None,
@@ -359,7 +391,7 @@ async def query_memories(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/memories/search")
+@router.post("/memories/search", responses=_MISSING_AGENT_ID)
 async def search_memories(
     body: SearchRequest,
     x_amp_agent_id: str | None = Header(default=None),

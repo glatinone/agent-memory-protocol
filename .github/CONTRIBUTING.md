@@ -87,6 +87,23 @@ lags the spec, mark the case `"known_gap": "reason"` instead of weakening the
 assertion; the runner reports it, and reports it again as `unexpected_pass` once
 it starts passing so the marker gets promoted or removed.
 
+### The OpenAPI contract
+
+`spec/v0.1.0/openapi.json` is generated from the reference server and committed.
+Regenerate it whenever the API surface changes, then commit it with the change:
+
+```bash
+cd server && python -c "import json; from amp_server.main import app; \
+    json.dump(app.openapi(), open('../spec/v0.1.0/openapi.json', 'w'), \
+              indent=2, sort_keys=True)"
+```
+
+`server/tests/test_openapi_contract.py` fails if the committed paths no longer
+match the app, and `sdk/python/tests/test_openapi_contract.py` fails if the
+client calls something the contract does not serve. The second one is the guard
+that matters for hand-written clients: a renamed endpoint would otherwise only
+show up in a user's application.
+
 ---
 
 ## Quality Gates

@@ -33,6 +33,16 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `server/tests/test_spec_conformance.py`: the example the pydantic model
   publishes into the OpenAPI document is now validated against the spec schema,
   so `/docs` cannot show a document the protocol forbids.
+- **A committed, tested API contract** (`spec/v0.1.0/openapi.json`), generated
+  from the reference server. Committed rather than only served, so a change to
+  the API surface shows up as a reviewable diff. Every route now declares the
+  `401`, `403` and `409` responses it can return, which puts the protocol's error
+  envelope in the contract instead of only in the code, and `DELETE
+  /memories/{id}` declares the `204` it actually answers with. Two tests keep it
+  honest: `server/tests/test_openapi_contract.py` fails when the committed paths
+  stop matching the app, and `sdk/python/tests/test_openapi_contract.py` drives
+  the real client through a recording adapter and fails when it calls a route the
+  contract does not serve or omits a field the contract requires.
 
 ### Changed
 - **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a
@@ -53,6 +63,9 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   "server unreachable" message.
 
 ### Fixed
+- The API reference's endpoint table omitted `GET /memories` and its
+  `/memories/query` alias, so two of the ten documented operations were missing
+  from the only place a reader looks for them.
 - **`PATCH /memories/{id}` accepted lifecycle status changes the spec forbids.**
   `StorageAdapter.update()` applied whatever status it was handed, so a write
   could push a cell straight to `deleted` (bypassing the archived precondition
