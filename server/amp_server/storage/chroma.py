@@ -125,6 +125,22 @@ class ChromaAdapter(StorageAdapter):
             # model_dump_json serializes datetimes to ISO strings, so the
             # result is safe to hand to json.dumps.
             updates_dict = json.loads(updates.model_dump_json(exclude_none=True))
+
+        lifecycle_update = updates_dict.get("lifecycle") or {}
+        if "status" in lifecycle_update:
+            # Deferred import: amp_server.lifecycle imports this package's base
+            # module, which triggers storage/__init__ and its import of this
+            # module, so a module-level import here would be circular.
+            from amp_server.lifecycle import check_status_transition
+
+            try:
+                target = LifecycleStatus(lifecycle_update["status"])
+            except ValueError as exc:
+                raise InvalidTransitionError(
+                    f"unknown lifecycle status {lifecycle_update['status']!r}"
+                ) from exc
+            check_status_transition(cell.lifecycle.status, target)
+
         self._apply_updates(cell_dict, updates_dict)
         cell_dict["lifecycle"]["last_updated_at"] = datetime.now(UTC).isoformat()
         updated_cell = _deserialize_cell(cell_dict)

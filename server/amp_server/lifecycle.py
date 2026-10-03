@@ -7,12 +7,45 @@ import math
 from datetime import UTC, datetime
 
 from amp_server.models import LifecycleStatus, MemoryCell, MemoryCellUpdate
-from amp_server.storage.base import StorageAdapter
+from amp_server.storage.base import InvalidTransitionError, StorageAdapter
 
 logger = logging.getLogger(__name__)
 
 STALE_THRESHOLD = 0.3
 ARCHIVE_STALE_DAYS = 30
+
+
+def check_status_transition(current: LifecycleStatus, new: LifecycleStatus) -> None:
+    """Refuse a status change the spec does not allow from a write (spec §2).
+
+    The transition table permits a client to archive a cell (the DELETE flow
+    archives first) and to bring a `stale` cell back to `active`. It forbids
+    exactly two things, which is all this enforces:
+
+    - an `archived` cell returning to `active` or `stale`;
+    - reaching `deleted` by anything other than `DELETE /memories/{id}`.
+
+    `deleted` is also terminal, so no further change is allowed from it.
+
+    Raises InvalidTransitionError, which the API layer renders as
+    `409 INVALID_TRANSITION`.
+    """
+    if new == current:
+        return
+    if new == LifecycleStatus.DELETED:
+        raise InvalidTransitionError(
+            "status cannot be set to 'deleted' directly; "
+            "use DELETE /amp/v1/memories/{id}, which requires the cell to be archived"
+        )
+    if current == LifecycleStatus.DELETED:
+        raise InvalidTransitionError(
+            "'deleted' is terminal; the status of a deleted cell cannot be changed"
+        )
+    if current == LifecycleStatus.ARCHIVED:
+        raise InvalidTransitionError(
+            f"an archived cell cannot return to '{new.value}'; "
+            "re-create the cell instead"
+        )
 
 
 def compute_decay_score(cell: MemoryCell, now: datetime | None = None) -> float:
