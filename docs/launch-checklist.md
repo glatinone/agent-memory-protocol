@@ -32,7 +32,9 @@ not just present, but verified against the real code and docs. Last verified
 - [x] All server tests pass: 70 passing (`pytest -v`, verified
       2026-10-03; the checklist previously said 57, then 55)
 - [x] Python SDK client (`sdk/amp_client/`) complete with sync, async, and
-      LangChain support, 14 tests passing
+      LangChain support, 29 tests passing
+      (was 14; +15 covering the LangChain integration, which had none and had
+      silently broken - see the CHANGELOG entry for the `BaseMemory` removal)
 - [x] Node.js SDK client (`sdk/node/`) added 2026-10-03: dependency-free
       (Node 18+ `fetch`, JSDoc types, no build step), 16 tests passing
       against a live server. CI runs it on Node 18/20/22 with the real

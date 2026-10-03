@@ -98,24 +98,30 @@ asyncio.run(main())
 
 ## LangChain Integration
 
-Use `AMPMemory` as a drop-in replacement for standard conversation memories to persist agent memory in AMP.
+`AMPMemory` is a LangChain `BaseChatMessageHistory` backed by AMP, so a chain
+can persist conversation turns as memory cells and read them back. The example
+below is exactly what the test suite runs and what a live server was verified
+with; note that langchain-core 1.x removed `BaseMemory` and `ConversationChain`,
+so this uses the current chat-history interface.
 
 ```python
-from langchain.chains import ConversationChain
 from amp_client import AMPClient
 from amp_client.integrations.langchain import AMPMemory
+from langchain_core.messages import HumanMessage, AIMessage
 
 client = AMPClient("http://localhost:8765", agent_id="chatbot_agent")
 memory = AMPMemory(client=client, owner_id="user_john", memory_key="history")
 
-conversation = ConversationChain(
-    llm=chat_model,
-    memory=memory,
-    verbose=True
-)
+memory.add_message(HumanMessage(content="Hi, my name is John and I write Python."))
+memory.add_message(AIMessage(content="Nice to meet you, John."))
 
-response = conversation.predict(input="Hi, my name is John and I write Python.")
+for message in memory.messages:
+    print(message.type, message.content)
 ```
+
+Any LangChain component that accepts a chat message history works with it
+directly. If you want the older string form instead of message objects, use
+`return_messages=False` and read `memory.load_memory_variables({})["history"]`.
 
 ---
 

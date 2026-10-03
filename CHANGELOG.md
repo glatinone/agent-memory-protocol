@@ -42,6 +42,25 @@ reference server, and the Python client SDK, released together.
   not natively supported" - a missing test dependency, not a code bug.
 
 ### Fixed
+- **The LangChain integration was broken and nothing caught it.** `AMPMemory`
+  subclassed `langchain_core.memory.BaseMemory`, which langchain-core 1.0
+  removed. Because the import sat inside a `try/except ImportError`, the module
+  still imported cleanly and the failure only appeared on construction, as
+  `ImportError: langchain-core is required to use AMPMemory` - with
+  langchain-core installed and working. Every published claim that AMP "includes
+  native LangChain integration" was therefore false on current langchain-core,
+  and no test covered it, so CI stayed green through it. This is the same class
+  of dependency-drift failure as the `mcp<2` pin earlier in this file.
+  Rewritten against the current interface: subclass `BaseChatMessageHistory`,
+  implement `messages` / `add_message` / `clear`, keep `save_context` and
+  `load_memory_variables` for the older chain API. The docstring records why,
+  and `sdk/python/tests/test_langchain_memory.py` (15 tests) now covers
+  ordering, prefix round-trip, multi-key context extraction, and the
+  degrade-don't-raise behaviour when storage fails. The first test asserts the
+  base class exists, so a future removal fails in CI rather than in a user's
+  app. `sdk/README.md`'s example also used `ConversationChain`, removed in the
+  same release; replaced with one that runs against the current API and was
+  verified against a live server.
 - **`stale → active` reactivation was implemented nowhere.** `spec/v0.1.0/
   lifecycle.md` §2 says a `stale` cell whose decay score is raised back above
   `0.3` - by a `scoring` `PATCH`, or by a `GET` that resets `last_accessed_at`

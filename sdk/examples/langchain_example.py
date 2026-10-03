@@ -108,7 +108,7 @@ def main():
     # client = AMPClient(server_url="http://localhost:8765", agent_id="langchain-agent")
 
     try:
-        from langchain_core.memory import BaseMemory
+        from langchain_core.chat_history import BaseChatMessageHistory  # noqa: F401
         from amp_client.integrations.langchain import AMPMemory
         print("Successfully imported langchain-core! Running actual AMPMemory implementation.")
         run_simulation(AMPMemory, client)
