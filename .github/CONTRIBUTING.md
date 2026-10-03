@@ -9,6 +9,9 @@ either the protocol specification or the reference implementation:
   implementation (`amp_server`).
 - **SDK** (`sdk/`) - the client library used by agents to talk to an AMP
   server.
+- **Conformance suite** (`conformance/`) - the runnable definition of what an
+  implementation has to do. Test vectors live here; they are written from the
+  spec, so a spec change and its vectors should land together.
 
 ---
 
@@ -38,6 +41,9 @@ cd server && pip install -e ".[dev]"
 
 # Python SDK, if you are working on the client
 cd ../sdk && pip install -e ".[dev,langchain]"
+
+# Conformance suite, if you are working on the vectors or the runner
+cd ../conformance && pip install -e ".[dev]"
 ```
 
 The Node SDK under `sdk/node/` has no dependencies at all (Node 18+ ships
@@ -63,6 +69,24 @@ pytest -v python/tests
 node --test test/client.test.js
 ```
 
+### Conformance suite
+
+The suite is the project's own definition of "implements AMP", and CI runs it
+against the reference server. Run the local half without a server, or the whole
+thing against a running one:
+
+```bash
+amp-conformance                                     # schema and decay only
+amp-conformance --base-url http://127.0.0.1:8765    # also the HTTP categories
+cd conformance && pytest -q                         # the runner's own tests
+```
+
+Write vectors from `spec/`, never from `server/amp_server`: a vector copied out
+of the code can only confirm the code. Where an implementation legitimately
+lags the spec, mark the case `"known_gap": "reason"` instead of weakening the
+assertion; the runner reports it, and reports it again as `unexpected_pass` once
+it starts passing so the marker gets promoted or removed.
+
 ---
 
 ## Quality Gates
@@ -72,15 +96,15 @@ request that fails any of them will not be merged. Run the same gates locally
 before pushing:
 
 ```bash
-# from server/, and again from sdk/
+# from server/, and again from sdk/ and conformance/
 ruff check .
 ruff format --check .
 mypy
 ```
 
-Both packages configure ruff and mypy in their own `pyproject.toml`. Ruff
+Each package configures ruff and mypy in its own `pyproject.toml`. Ruff
 resolves configuration per file, so running it from the repository root covers
-both packages correctly.
+all three correctly.
 
 `pre-commit` is optional, and runs the same lint and format hooks before each
 commit so a failure surfaces locally instead of in CI:

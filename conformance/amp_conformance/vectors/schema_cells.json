@@ -1,0 +1,221 @@
+{
+  "category": "schema",
+  "description": "Standalone MemoryCell documents, checked against spec/v0.1.0/memory-cell.schema.json. The schema is the normative artifact: a document marked valid must validate, and one marked invalid must not. No server is needed.",
+  "cases": [
+    {
+      "id": "minimal-valid",
+      "valid": true,
+      "document": {
+        "amp_version": "0.1.0",
+        "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5",
+        "type": "semantic",
+        "content": {"text": "The user prefers email."},
+        "identity": {"owner_id": "user-123", "owner_type": "user"},
+        "lifecycle": {"created_at": "2025-01-01T00:00:00Z", "status": "active"}
+      }
+    },
+    {
+      "id": "full-valid",
+      "valid": true,
+      "document": {
+        "amp_version": "0.1.0",
+        "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5",
+        "type": "procedural",
+        "content": {
+          "text": "Deploy with the staging flag first.",
+          "metadata": {"domain": "ops", "tags": ["deploy"]}
+        },
+        "identity": {
+          "owner_id": "org-1",
+          "owner_type": "organization",
+          "created_by": "agent-456",
+          "session_id": "session-789"
+        },
+        "lifecycle": {
+          "created_at": "2025-01-01T00:00:00Z",
+          "last_accessed_at": "2025-01-02T00:00:00Z",
+          "last_updated_at": "2025-01-02T00:00:00Z",
+          "expires_at": "2026-01-01T00:00:00Z",
+          "status": "stale"
+        },
+        "scoring": {
+          "importance": 0.8,
+          "confidence": 0.95,
+          "decay_rate": 0.01,
+          "access_count": 5
+        },
+        "access_policy": {
+          "readable_by": ["agent-*"],
+          "writable_by": ["agent-456"],
+          "public": false
+        },
+        "provenance": {
+          "source_type": "conversation",
+          "source_ref": "conv-abc-123",
+          "extraction_method": "llm_extraction"
+        }
+      }
+    },
+    {
+      "id": "id-must-be-mem-prefixed",
+      "valid": false,
+      "why": "spec requires ^mem_[0-9A-Z]{26}$",
+      "document": {
+        "amp_version": "0.1.0",
+        "id": "01J5A3B7K9M2N4P6Q8R0S1T3V5",
+        "type": "semantic",
+        "content": {"text": "no prefix"},
+        "identity": {"owner_id": "user-123", "owner_type": "user"},
+        "lifecycle": {"created_at": "2025-01-01T00:00:00Z"}
+      }
+    },
+    {
+      "id": "id-must-be-uppercase-ulid",
+      "valid": false,
+      "why": "the pattern is uppercase only",
+      "document": {
+        "amp_version": "0.1.0",
+        "id": "mem_01j5a3b7k9m2n4p6q8r0s1t3v5",
+        "type": "semantic",
+        "content": {"text": "lowercase ulid"},
+        "identity": {"owner_id": "user-123", "owner_type": "user"},
+        "lifecycle": {"created_at": "2025-01-01T00:00:00Z"}
+      }
+    },
+    {
+      "id": "unknown-top-level-field-is-rejected",
+      "valid": false,
+      "why": "additionalProperties is false at the top level",
+      "document": {
+        "amp_version": "0.1.0",
+        "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5",
+        "type": "semantic",
+        "content": {"text": "extra field"},
+        "identity": {"owner_id": "user-123", "owner_type": "user"},
+        "lifecycle": {"created_at": "2025-01-01T00:00:00Z"},
+        "ttl": 3600
+      }
+    },
+    {
+      "id": "content-is-required",
+      "valid": false,
+      "why": "required: [amp_version, id, type, content, identity, lifecycle]",
+      "document": {
+        "amp_version": "0.1.0",
+        "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5",
+        "type": "semantic",
+        "identity": {"owner_id": "user-123", "owner_type": "user"},
+        "lifecycle": {"created_at": "2025-01-01T00:00:00Z"}
+      }
+    },
+    {
+      "id": "type-must-be-a-known-value",
+      "valid": false,
+      "why": "enum is episodic|semantic|procedural",
+      "document": {
+        "amp_version": "0.1.0",
+        "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5",
+        "type": "literal",
+        "content": {"text": "unknown type"},
+        "identity": {"owner_id": "user-123", "owner_type": "user"},
+        "lifecycle": {"created_at": "2025-01-01T00:00:00Z"}
+      }
+    },
+    {
+      "id": "owner-type-must-be-a-known-value",
+      "valid": false,
+      "why": "enum is user|agent|organization",
+      "document": {
+        "amp_version": "0.1.0",
+        "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5",
+        "type": "semantic",
+        "content": {"text": "unknown owner type"},
+        "identity": {"owner_id": "user-123", "owner_type": "team"},
+        "lifecycle": {"created_at": "2025-01-01T00:00:00Z"}
+      }
+    },
+    {
+      "id": "status-must-be-a-known-value",
+      "valid": false,
+      "why": "enum is active|stale|archived|deleted",
+      "document": {
+        "amp_version": "0.1.0",
+        "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5",
+        "type": "semantic",
+        "content": {"text": "unknown status"},
+        "identity": {"owner_id": "user-123", "owner_type": "user"},
+        "lifecycle": {"created_at": "2025-01-01T00:00:00Z", "status": "expired"}
+      }
+    },
+    {
+      "id": "importance-cannot-exceed-one",
+      "valid": false,
+      "why": "maximum is 1.0",
+      "document": {
+        "amp_version": "0.1.0",
+        "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5",
+        "type": "semantic",
+        "content": {"text": "importance too high"},
+        "identity": {"owner_id": "user-123", "owner_type": "user"},
+        "lifecycle": {"created_at": "2025-01-01T00:00:00Z"},
+        "scoring": {"importance": 1.5}
+      }
+    },
+    {
+      "id": "confidence-cannot-go-negative",
+      "valid": false,
+      "why": "minimum is 0.0",
+      "document": {
+        "amp_version": "0.1.0",
+        "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5",
+        "type": "semantic",
+        "content": {"text": "negative confidence"},
+        "identity": {"owner_id": "user-123", "owner_type": "user"},
+        "lifecycle": {"created_at": "2025-01-01T00:00:00Z"},
+        "scoring": {"confidence": -0.1}
+      }
+    },
+    {
+      "id": "access-count-cannot-go-negative",
+      "valid": false,
+      "why": "minimum is 0",
+      "document": {
+        "amp_version": "0.1.0",
+        "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5",
+        "type": "semantic",
+        "content": {"text": "negative access count"},
+        "identity": {"owner_id": "user-123", "owner_type": "user"},
+        "lifecycle": {"created_at": "2025-01-01T00:00:00Z"},
+        "scoring": {"access_count": -1}
+      }
+    },
+    {
+      "id": "provenance-source-type-must-be-known",
+      "valid": false,
+      "why": "enum is conversation|document|inference|user_explicit|null",
+      "document": {
+        "amp_version": "0.1.0",
+        "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5",
+        "type": "semantic",
+        "content": {"text": "unknown provenance"},
+        "identity": {"owner_id": "user-123", "owner_type": "user"},
+        "lifecycle": {"created_at": "2025-01-01T00:00:00Z"},
+        "provenance": {"source_type": "telepathy"}
+      }
+    },
+    {
+      "id": "readable-by-must-be-strings",
+      "valid": false,
+      "why": "items are typed string",
+      "document": {
+        "amp_version": "0.1.0",
+        "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5",
+        "type": "semantic",
+        "content": {"text": "non-string pattern"},
+        "identity": {"owner_id": "user-123", "owner_type": "user"},
+        "lifecycle": {"created_at": "2025-01-01T00:00:00Z"},
+        "access_policy": {"readable_by": [1, 2]}
+      }
+    }
+  ]
+}

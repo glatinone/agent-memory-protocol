@@ -1,0 +1,84 @@
+{
+  "category": "decay",
+  "description": "decay_score = importance x confidence x e^(-decay_rate x delta_days), from spec/v0.1.0/lifecycle.md section 3. A cell is stale when the score is below 0.3. No server is needed; the suite implements the formula from the specification so an implementation can be checked against it.",
+  "threshold": 0.3,
+  "tolerance": 1e-06,
+  "cases": [
+    {
+      "id": "spec-example-30-days",
+      "note": "the worked example in lifecycle.md section 3",
+      "importance": 0.5,
+      "confidence": 1.0,
+      "decay_rate": 0.01,
+      "delta_days": 30,
+      "expected_score": 0.3704091103,
+      "expected_status": "active"
+    },
+    {
+      "id": "half-life-at-default-rate",
+      "note": "ln(2)/0.01 days halves a full score",
+      "importance": 1.0,
+      "confidence": 1.0,
+      "decay_rate": 0.01,
+      "delta_days": 69.31471806,
+      "expected_score": 0.5,
+      "expected_status": "active"
+    },
+    {
+      "id": "just-above-threshold-stays-active",
+      "importance": 0.5,
+      "confidence": 1.0,
+      "decay_rate": 0.01,
+      "delta_days": 51.0,
+      "expected_score": 0.3002478,
+      "expected_status": "active"
+    },
+    {
+      "id": "just-below-threshold-goes-stale",
+      "importance": 0.5,
+      "confidence": 1.0,
+      "decay_rate": 0.01,
+      "delta_days": 52.0,
+      "expected_score": 0.2972603,
+      "expected_status": "stale"
+    },
+    {
+      "id": "exactly-at-threshold-is-not-stale",
+      "note": "the rule is score < 0.3, so equality stays active",
+      "importance": 0.6,
+      "confidence": 1.0,
+      "decay_rate": 0.0,
+      "delta_days": 0.0,
+      "expected_score": 0.6,
+      "expected_status": "active"
+    },
+    {
+      "id": "zero-decay-rate-never-fades",
+      "importance": 0.5,
+      "confidence": 1.0,
+      "decay_rate": 0.0,
+      "delta_days": 10000.0,
+      "expected_score": 0.5,
+      "expected_status": "active"
+    },
+    {
+      "id": "low-importance-starts-stale",
+      "note": "a score below the threshold is stale from the first evaluation",
+      "importance": 0.2,
+      "confidence": 1.0,
+      "decay_rate": 0.0,
+      "delta_days": 0.0,
+      "expected_score": 0.2,
+      "expected_status": "stale"
+    },
+    {
+      "id": "confidence-scales-the-score",
+      "importance": 1.0,
+      "confidence": 0.4,
+      "decay_rate": 0.01,
+      "delta_days": 20.0,
+      "expected_score": 0.3274923,
+      "expected_status": "active"
+    }
+  ]
+}

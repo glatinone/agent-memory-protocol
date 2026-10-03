@@ -1,0 +1,51 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "amp-conformance"
+version = "0.1.0"
+description = "Conformance suite for the Agent Memory Protocol (AMP)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+# Deliberately does not depend on amp-server: this suite has to be runnable
+# against any implementation, including one that is not this project's.
+dependencies = [
+    "httpx>=0.27,<1",
+    "jsonschema>=4.20,<5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.6.0",
+    "mypy>=1.11.0",
+    "types-jsonschema>=4.20",
+]
+
+[project.scripts]
+amp-conformance = "amp_conformance.runner:main"
+
+[project.urls]
+Homepage = "https://glatinone.github.io/agent-memory-protocol/"
+Repository = "https://github.com/glatinone/agent-memory-protocol"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "BLE"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["amp_conformance"]
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true

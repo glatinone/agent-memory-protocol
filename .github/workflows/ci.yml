@@ -23,16 +23,19 @@ jobs:
         # silently stops checking the integration (and reports its
         # `# type: ignore[override]` as unused). CONTRIBUTING tells contributors
         # to install the same extra for the same reason.
-        run: pip install -e "server[dev]" -e "sdk[dev,langchain]"
-      - name: Ruff lint (server + sdk)
-        run: ruff check server sdk
-      - name: Ruff format check (server + sdk)
-        run: ruff format --check server sdk
+        run: pip install -e "server[dev]" -e "sdk[dev,langchain]" -e "conformance[dev]"
+      - name: Ruff lint (every Python package)
+        run: ruff check server sdk conformance
+      - name: Ruff format check (every Python package)
+        run: ruff format --check server sdk conformance
       - name: mypy (server)
         working-directory: server
         run: mypy
       - name: mypy (sdk)
         working-directory: sdk
+        run: mypy
+      - name: mypy (conformance)
+        working-directory: conformance
         run: mypy
 
   server:
@@ -121,3 +124,35 @@ jobs:
       - name: Run Node SDK tests
         working-directory: sdk/node
         run: node --test test/client.test.js
+
+  # Runs the conformance suite against the reference server, so the repository
+  # is checked against the specification rather than only against itself.
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the reference server and the suite
+        run: pip install -e "server[dev]" -e "conformance[dev]"
+
+      - name: Start the reference server
+        working-directory: server
+        run: |
+          uvicorn amp_server.main:app --host 127.0.0.1 --port 8765 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8765/amp/v1/health && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8765/amp/v1/health
+
+      # Fails on any vector the server does not satisfy, and on a case marked
+      # as a known gap that has started passing.
+      - name: Conformance suite against the reference server
+        run: amp-conformance --base-url http://127.0.0.1:8765
+
+      - name: Conformance suite unit tests
+        working-directory: conformance
+        run: pytest -q

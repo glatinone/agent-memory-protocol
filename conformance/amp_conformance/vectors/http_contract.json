@@ -1,0 +1,270 @@
+{
+  "category": "http_contract",
+  "description": "Wire-level rules a server must satisfy, written from spec/v0.1.0/lifecycle.md and memory-cell.schema.json rather than from any implementation. Steps run in order; {name.path} placeholders resolve against the response body captured by a previous step's \"capture\".",
+  "cases": [
+    {
+      "id": "health-reports-ok",
+      "steps": [
+        {
+          "request": {"method": "GET", "path": "/health"},
+          "expect": {"status": 200, "json_equals": {"status": "ok"}}
+        }
+      ]
+    },
+    {
+      "id": "create-without-agent-identity-is-401",
+      "steps": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/memories",
+            "json": {
+              "type": "semantic",
+              "content": {"text": "no identity header"},
+              "identity": {"owner_id": "user-conf-noid", "owner_type": "user"}
+            }
+          },
+          "expect": {"status": 401, "error_code": "MISSING_AGENT_ID"}
+        }
+      ]
+    },
+    {
+      "id": "search-without-agent-identity-is-401",
+      "steps": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/memories/search",
+            "json": {"query": "anything"}
+          },
+          "expect": {"status": 401, "error_code": "MISSING_AGENT_ID"}
+        }
+      ]
+    },
+    {
+      "id": "create-returns-201-and-a-mem-prefixed-id",
+      "steps": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/memories",
+            "headers": {"X-AMP-Agent-ID": "agent-conformance"},
+            "json": {
+              "type": "semantic",
+              "content": {"text": "conformance create probe"},
+              "identity": {"owner_id": "user-conf-create", "owner_type": "user"}
+            }
+          },
+          "expect": {
+            "status": 201,
+            "has_fields": ["amp_version", "id", "type", "content", "identity", "lifecycle"],
+            "id_prefix": "mem_",
+            "json_equals": {"lifecycle.status": "active"}
+          },
+          "capture": "cell"
+        }
+      ]
+    },
+    {
+      "id": "unknown-id-is-403-not-404",
+      "note": "spec section 8.4: a missing cell and a forbidden cell must be indistinguishable",
+      "steps": [
+        {
+          "request": {
+            "method": "GET",
+            "path": "/memories/mem_01J5A3B7K9M2N4P6Q8R0S1T3V5",
+            "headers": {"X-AMP-Agent-ID": "agent-conformance"}
+          },
+          "expect": {"status": 403, "error_code": "ACCESS_DENIED"}
+        }
+      ]
+    },
+    {
+      "id": "get-increments-access-count",
+      "steps": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/memories",
+            "headers": {"X-AMP-Agent-ID": "agent-conformance"},
+            "json": {
+              "type": "semantic",
+              "content": {"text": "access count probe"},
+              "identity": {"owner_id": "user-conf-access", "owner_type": "user"}
+            }
+          },
+          "expect": {"status": 201},
+          "capture": "cell"
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/memories/{cell.id}",
+            "headers": {"X-AMP-Agent-ID": "agent-conformance"}
+          },
+          "expect": {"status": 200, "json_equals": {"scoring.access_count": 1}}
+        }
+      ]
+    },
+    {
+      "id": "delete-an-active-cell-is-409",
+      "note": "spec section 5: only an archived cell can be deleted",
+      "steps": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/memories",
+            "headers": {"X-AMP-Agent-ID": "agent-conformance"},
+            "json": {
+              "type": "semantic",
+              "content": {"text": "delete while active"},
+              "identity": {"owner_id": "user-conf-del", "owner_type": "user"}
+            }
+          },
+          "expect": {"status": 201},
+          "capture": "cell"
+        },
+        {
+          "request": {
+            "method": "DELETE",
+            "path": "/memories/{cell.id}",
+            "headers": {"X-AMP-Agent-ID": "agent-conformance"}
+          },
+          "expect": {"status": 409, "error_code": "INVALID_TRANSITION"}
+        }
+      ]
+    },
+    {
+      "id": "archived-cell-deletes-then-reads-as-403",
+      "steps": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/memories",
+            "headers": {"X-AMP-Agent-ID": "agent-conformance"},
+            "json": {
+              "type": "semantic",
+              "content": {"text": "archive then delete"},
+              "identity": {"owner_id": "user-conf-arch", "owner_type": "user"}
+            }
+          },
+          "expect": {"status": 201},
+          "capture": "cell"
+        },
+        {
+          "request": {
+            "method": "PATCH",
+            "path": "/memories/{cell.id}",
+            "headers": {"X-AMP-Agent-ID": "agent-conformance"},
+            "json": {
+              "lifecycle": {
+                "created_at": "{cell.lifecycle.created_at}",
+                "status": "archived"
+              }
+            }
+          },
+          "expect": {"status": 200, "json_equals": {"lifecycle.status": "archived"}}
+        },
+        {
+          "request": {
+            "method": "DELETE",
+            "path": "/memories/{cell.id}",
+            "headers": {"X-AMP-Agent-ID": "agent-conformance"}
+          },
+          "expect": {"status": 204}
+        },
+        {
+          "request": {
+            "method": "GET",
+            "path": "/memories/{cell.id}",
+            "headers": {"X-AMP-Agent-ID": "agent-conformance"}
+          },
+          "expect": {"status": 403, "error_code": "ACCESS_DENIED"}
+        }
+      ]
+    },
+    {
+      "id": "archived-cell-cannot-return-to-active",
+      "note": "spec section 2 lists archived to active as not permitted, response 409 INVALID_TRANSITION",
+      "steps": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/memories",
+            "headers": {"X-AMP-Agent-ID": "agent-conformance"},
+            "json": {
+              "type": "semantic",
+              "content": {"text": "archived must stay archived"},
+              "identity": {"owner_id": "user-conf-unarch", "owner_type": "user"}
+            }
+          },
+          "expect": {"status": 201},
+          "capture": "cell"
+        },
+        {
+          "request": {
+            "method": "PATCH",
+            "path": "/memories/{cell.id}",
+            "headers": {"X-AMP-Agent-ID": "agent-conformance"},
+            "json": {
+              "lifecycle": {
+                "created_at": "{cell.lifecycle.created_at}",
+                "status": "archived"
+              }
+            }
+          },
+          "expect": {"status": 200},
+          "capture": "archived"
+        },
+        {
+          "request": {
+            "method": "PATCH",
+            "path": "/memories/{cell.id}",
+            "headers": {"X-AMP-Agent-ID": "agent-conformance"},
+            "json": {
+              "lifecycle": {
+                "created_at": "{archived.lifecycle.created_at}",
+                "status": "active"
+              }
+            }
+          },
+          "expect": {"status": 409, "error_code": "INVALID_TRANSITION"}
+        }
+      ]
+    },
+    {
+      "id": "patch-cannot-set-status-deleted",
+      "note": "spec section 2: use DELETE, not PATCH, to reach deleted",
+      "steps": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/memories",
+            "headers": {"X-AMP-Agent-ID": "agent-conformance"},
+            "json": {
+              "type": "semantic",
+              "content": {"text": "patch to deleted"},
+              "identity": {"owner_id": "user-conf-patchdel", "owner_type": "user"}
+            }
+          },
+          "expect": {"status": 201},
+          "capture": "cell"
+        },
+        {
+          "request": {
+            "method": "PATCH",
+            "path": "/memories/{cell.id}",
+            "headers": {"X-AMP-Agent-ID": "agent-conformance"},
+            "json": {
+              "lifecycle": {
+                "created_at": "{cell.lifecycle.created_at}",
+                "status": "deleted"
+              }
+            }
+          },
+          "expect": {"status": 409, "error_code": "INVALID_TRANSITION"}
+        }
+      ]
+    }
+  ]
+}

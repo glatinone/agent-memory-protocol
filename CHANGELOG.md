@@ -17,6 +17,22 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   checked with the repository's rule set instead of Ruff's own fallback.
 - `server/tests/test_error_shape.py`, pinning the error envelope on every
   endpoint and on every error helper.
+- **A conformance suite any implementation can run** (`conformance/`). Test
+  vectors written from the specification, plus a runner that reaches a server
+  only over the wire: it imports nothing from `amp_server`, so it can be pointed
+  at a third-party implementation. Four categories - `schema` (documents against
+  the normative JSON Schema), `decay` (the score formula and the `0.3` stale
+  threshold), `http_contract` (status codes, error envelopes, the archive-then
+  delete flow) and `access_control` (the read and write decision for a policy
+  matrix, checked through `GET`, `PATCH` and `POST /memories/search` at once).
+  Install it as `amp-conformance`, write a machine-readable report with
+  `--json`, and select a category with `--only`. A `"known_gap"` marker records
+  a deviation without failing the run, and a gap that starts passing is reported
+  as `unexpected_pass` so the list cannot rot. A `conformance` CI job runs the
+  whole suite against the reference server on every push.
+- `server/tests/test_spec_conformance.py`: the example the pydantic model
+  publishes into the OpenAPI document is now validated against the spec schema,
+  so `/docs` cannot show a document the protocol forbids.
 
 ### Changed
 - **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a
@@ -37,6 +53,19 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   "server unreachable" message.
 
 ### Fixed
+- **`PATCH /memories/{id}` accepted lifecycle status changes the spec forbids.**
+  `StorageAdapter.update()` applied whatever status it was handed, so a write
+  could push a cell straight to `deleted` (bypassing the archived precondition
+  and the DELETE semantics in spec §5) and an `archived` cell could be brought
+  back to `active` even though §2 lists that as not permitted and 409.
+  `check_status_transition()` in `amp_server.lifecycle` now enforces the two
+  prohibitions in §2 and is called from the update path, which also makes the
+  `409 INVALID_TRANSITION` branch on the route reachable for the first time.
+  Both violations were found by the new conformance suite, not by reading the
+  code. 19 tests in `server/tests/test_transitions.py`.
+- The example in `MemoryCell.model_config`, which pydantic publishes into the
+  OpenAPI document and therefore into `/docs`, carried an id without the `mem_`
+  prefix and so was not a valid AMP document against the protocol's own schema.
 - **`search()` applied a different read rule from the REST and MCP endpoints.**
   `storage/chroma.py` carried its own copy of the read check, and that copy
   skipped any `readable_by` entry equal to the literal string `"owner"` while

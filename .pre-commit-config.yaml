@@ -26,6 +26,6 @@ repos:
     hooks:
       - id: ruff-check
         args: [--fix]
-        files: ^(server|sdk)/.*\.py$
+        files: ^(server|sdk|conformance)/.*\.py$
       - id: ruff-format
-        files: ^(server|sdk)/.*\.py$
+        files: ^(server|sdk|conformance)/.*\.py$

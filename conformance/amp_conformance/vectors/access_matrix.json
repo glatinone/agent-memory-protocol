@@ -1,0 +1,69 @@
+{
+  "category": "access_control",
+  "description": "The read and write decision for every agent against a cell's policy, checked through three surfaces at once: GET /memories/{id} (read), PATCH /memories/{id} (write) and POST /memories/search (read, via the ranking path). Spec section 8 and the access_policy description in memory-cell.schema.json: owner and creator always retain full access, patterns are fnmatch, public means any agent may read.",
+  "cases": [
+    {
+      "id": "owner-creator-pattern-and-stranger",
+      "description": "A cell readable by one literal agent and one wildcard; checks owner, creator, an unrelated agent and a pattern-matched agent.",
+      "cell": {
+        "type": "semantic",
+        "content": {"text": "shared preference memory"},
+        "identity": {
+          "owner_id": "user-matrix-1",
+          "owner_type": "user",
+          "created_by": "agent_creator_1"
+        },
+        "access_policy": {
+          "readable_by": ["agent_reader*"],
+          "writable_by": ["agent_writer*"],
+          "public": false
+        }
+      },
+      "query": "shared preference memory",
+      "actors": [
+        {"agent_id": "user-matrix-1", "read": true, "write": true, "why": "owner retains full access"},
+        {"agent_id": "agent_creator_1", "read": true, "write": true, "why": "creator retains full access"},
+        {"agent_id": "agent_reader_alpha", "read": true, "write": false, "why": "matches readable_by"},
+        {"agent_id": "agent_writer_beta", "read": false, "write": true, "why": "matches writable_by but not readable_by"},
+        {"agent_id": "agent_stranger", "read": false, "write": false, "why": "matches nothing"}
+      ]
+    },
+    {
+      "id": "public-cell-is-readable-by-anyone",
+      "cell": {
+        "type": "semantic",
+        "content": {"text": "public shared memory"},
+        "identity": {
+          "owner_id": "user-matrix-2",
+          "owner_type": "user",
+          "created_by": "agent_public_creator"
+        },
+        "access_policy": {"readable_by": [], "writable_by": [], "public": true}
+      },
+      "query": "public shared memory",
+      "actors": [
+        {"agent_id": "agent_anyone", "read": true, "write": false, "why": "public read, but not writable"},
+        {"agent_id": "user-matrix-2", "read": true, "write": true, "why": "owner"}
+      ]
+    },
+    {
+      "id": "default-policy-is-owner-and-creator-only",
+      "description": "An empty policy grants nobody else anything.",
+      "cell": {
+        "type": "semantic",
+        "content": {"text": "private default memory"},
+        "identity": {
+          "owner_id": "user-matrix-3",
+          "owner_type": "user",
+          "created_by": "agent_private_creator"
+        }
+      },
+      "query": "private default memory",
+      "actors": [
+        {"agent_id": "user-matrix-3", "read": true, "write": true, "why": "owner"},
+        {"agent_id": "agent_private_creator", "read": true, "write": true, "why": "creator"},
+        {"agent_id": "agent_nosy", "read": false, "write": false, "why": "empty policy denies everyone else"}
+      ]
+    }
+  ]
+}

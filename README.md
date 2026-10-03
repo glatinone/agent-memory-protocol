@@ -140,6 +140,7 @@ For more detailed guides and client references:
 - **Protocol Specification Explained**: [docs/spec-explained.md](docs/spec-explained.md) (narrative walkthrough of the raw spec above)
 - **API Reference**: [docs/api-reference.md](docs/api-reference.md)
 - **FAQ**: [docs/faq.md](docs/faq.md)
+- **Conformance Suite**: [conformance/](conformance/) - the runnable definition of "implements AMP". Runnable against any server: `amp-conformance --base-url http://localhost:8765`
 - **Contributing Guide**: [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md)
 - **Code Examples**: [examples/](examples/)
 
