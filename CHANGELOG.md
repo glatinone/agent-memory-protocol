@@ -8,19 +8,60 @@ This project has not yet made a tagged release; entries below are grouped as
 
 ## [Unreleased]
 
+### Added
+- **The reference server now runs the decay engine on a schedule.** Closing the
+  launch blocker: `LifecycleEngine.process_all()` was fully implemented and
+  unit-tested but nothing ever called it, so a fresh `docker compose up -d`
+  never transitioned a cell's status. It is now driven by a background asyncio
+  task started from the FastAPI `lifespan` — on by default, cancelled cleanly on
+  shutdown — answering the schedule `spec/v0.1.0/lifecycle.md` leaves
+  implementation-defined.
+  - `POST /amp/v1/lifecycle/run` triggers one pass on demand, gated on
+    `AMP_ADMIN_TOKEN`; unset means the route is disabled (`403`), not open. This
+    is what makes the run testable in CI and usable from an external cron or an
+    operator.
+  - `AMP_LIFECYCLE_ENABLED` (default `true`) and
+    `AMP_LIFECYCLE_INTERVAL_SECONDS` (default `3600`) control the scheduler.
+  - `GET /spec` now advertises the scheduler state and the manual-run endpoint.
+  - A failing run is logged and swallowed, so one storage error cannot silently
+    end all decay for the process lifetime.
+  - `configure_logging()` — uvicorn configures only `uvicorn.*` loggers and
+    never the root logger, so every `amp_server.*` log line (including the
+    scheduler's start and run records, the only way to tell the scheduler is
+    alive) went nowhere.
+
 ### Fixed
+- **`stale → active` reactivation was implemented nowhere.** `spec/v0.1.0/
+  lifecycle.md` §2 says a `stale` cell whose decay score is raised back above
+  `0.3` — by a `scoring` `PATCH`, or by a `GET` that resets `last_accessed_at`
+  — returns to `active` on the next engine run, and `docs/spec-explained.md`
+  already told readers that. `LifecycleEngine.evaluate_cell()` had branches for
+  `active → stale`, `stale → archived`, and terminal `deleted`, but none for
+  this, so a `stale` cell stayed `stale` until it was archived. Added, with
+  tests; `process_all()` now also always reports a `stale_to_active` count.
+- Removed `apscheduler>=3.10.0` from `server/pyproject.toml`. It was declared
+  but imported nowhere in the repo; the scheduler is a plain asyncio task, so
+  the dependency was unused surface — and a needless CVE exposure in a
+  security-conscious reference implementation.
+- `docs/api-reference.md` described `GET /spec` as returning a "spec URL" and
+  showed a response body without the `capabilities` fields the endpoint has
+  returned since before this pass; corrected, and the new lifecycle endpoint
+  and its auth are documented.
+- `docs/faq.md` and `docs/index.md` told readers to wire decay into their own
+  periodic job because the reference server did not run it on a timer. Made
+  stale by the scheduler work above; both now describe the built-in default and
+  the `AMP_LIFECYCLE_*` knobs.
 - `README.md`'s top-line pitch and the Comparison table both described the
   decay-archival lifecycle as "automatic... out of the box," which was true
-  of the *spec* but not of the reference server — `LifecycleEngine
-  .process_all()` is implemented and unit-tested, but nothing in
-  `amp_server/main.py` calls it, so a fresh `docker compose up -d` never
-  transitions a cell's status on its own (already documented correctly in
-  `docs/faq.md` and `docs/launch-checklist.md`, just not in the README
-  itself). Reworded both spots to describe the state machine accurately and
-  point at the FAQ for the full explanation, instead of overclaiming the
-  README readers see first. `docs/launch-checklist.md` also updated: test
-  count (55 -> 57) and last-verified date were stale, and it had no entry
-  for the 2026-07-31 decay-blend search fix or the `mcp<2` CI pin.
+  of the *spec* but not of the reference server at the time — `LifecycleEngine
+  .process_all()` was implemented and unit-tested, but nothing in
+  `amp_server/main.py` called it, so a fresh `docker compose up -d` never
+  transitioned a cell's status on its own. That pass reworded both spots to
+  describe the state machine accurately and point at the FAQ instead of
+  overclaiming the README readers see first, and corrected `docs/
+  launch-checklist.md`'s stale test count and last-verified date. Superseded
+  by the scheduler work above, which makes the automatic claim true of the
+  running server rather than only of the spec.
 - CI (`pip install -e .[dev]`, no lockfile) started failing with
   `ModuleNotFoundError: No module named 'mcp.server.fastmcp'` once the MCP
   Python SDK's 2.0.0 stable release renamed `FastMCP` to `MCPServer` and
@@ -126,22 +167,12 @@ This project has not yet made a tagged release; entries below are grouped as
   gaps listed as open items instead of checked boxes.
 
 ### Known gaps (not fixed this pass, documented rather than silently carried)
-- **`LifecycleEngine.process_all()`, the `active`→`stale`→`archived` decay
-  state machine, is fully implemented and unit-tested, but nothing in
-  `amp_server/main.py` ever calls it.** The spec (`spec/v0.1.0/lifecycle.md`)
-  explicitly leaves the run schedule "implementation-defined," and the
-  reference server doesn't define one: no background task, no scheduled
-  job, no route that triggers it. A fresh `docker compose up -d` will never
-  transition a cell's status on its own. This means the "automatic decay"
-  language in the README/FAQ/marketing drafts was accurate to the *spec*
-  but not to *this running server* until someone wires `process_all()` into
-  a scheduler (an asyncio task in the FastAPI `lifespan`, an admin endpoint,
-  or an external cron). Docs were corrected this pass to describe the real
-  behavior; the code itself was not touched. Scheduling it is a real design
-  decision (interval, whether it should be on by default, how to make it
-  testable) and out of scope for a docs-only pass. See
-  `docs/launch-checklist.md`.
-- `sdk/python/amp/` is a thin, unbuilt re-export shim (`from amp_client import
-  ...`) that isn't wired into `sdk/pyproject.toml`'s build at all — installing
-  `amp-client` does not make `import amp` work. Needs a real design decision
-  (wire up the `amp` alias, or delete it); unrelated to the doc fixes above.
+- ~~`LifecycleEngine.process_all()` is fully implemented and unit-tested, but
+  nothing in `amp_server/main.py` ever calls it.~~ **Resolved 2026-10-03** — see
+  the scheduler entry under `[Unreleased]` → Added. The reference server now
+  runs it on a configurable interval and exposes an admin-gated manual-run
+  route.
+- ~~`sdk/python/amp/` is a thin, unbuilt re-export shim that isn't wired into
+  `sdk/pyproject.toml`'s build, so installing `amp-client` does not make
+  `import amp` work.~~ **Resolved 2026-10-03** — the shim was deleted; it was
+  referenced by nothing, and `sdk/amp_client/` is the real package.

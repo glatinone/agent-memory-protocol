@@ -4,7 +4,7 @@
 **Protocol version:** `0.1.0`  
 **Content-Type:** `application/json`
 
-All endpoints accept and return JSON. Authentication is not enforced in the reference implementation but access control is expressed via `access_policy` on each memory cell.
+All endpoints accept and return JSON. Memory-cell access control is expressed via `access_policy` on each cell; the only endpoint with its own auth is `POST /lifecycle/run`, gated on an admin token.
 
 ---
 
@@ -13,12 +13,13 @@ All endpoints accept and return JSON. Authentication is not enforced in the refe
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Server health check |
-| GET | `/spec` | Protocol version and spec URL |
+| GET | `/spec` | Protocol version and this server's declared capabilities |
 | POST | `/memories` | Create a memory cell |
 | GET | `/memories/{memory_id}` | Retrieve a memory cell by ID |
 | PATCH | `/memories/{memory_id}` | Update fields on a memory cell |
 | DELETE | `/memories/{memory_id}` | Soft-delete a memory cell |
 | POST | `/memories/search` | Semantic search over memory cells |
+| POST | `/lifecycle/run` | Run one decay pass now (admin token required) |
 
 ---
 
@@ -61,7 +62,12 @@ curl http://localhost:8765/amp/v1/spec
   "capabilities": {
     "mcp_compatible": false,
     "storage_backends": ["chroma"],
-    "max_cell_size_bytes": 65536
+    "max_cell_size_bytes": 65536,
+    "lifecycle_scheduler": {
+      "enabled": true,
+      "interval_seconds": 3600,
+      "manual_run_endpoint": "/amp/v1/lifecycle/run"
+    }
   }
 }
 ```
@@ -482,6 +488,52 @@ curl -X POST http://localhost:8765/amp/v1/memories/search \
 
 ---
 
+## POST /lifecycle/run
+
+Runs one decay pass (`LifecycleEngine.process_all()`) immediately, evaluating every cell and applying any `active → stale`, `stale → active`, or `stale → archived` transitions the decay scores call for. This is the same work the background scheduler does on its interval; it exists so an operator, an external cron, or a test can trigger a run on demand.
+
+Because it mutates lifecycle state across the whole store, the endpoint is gated on the `AMP_ADMIN_TOKEN` environment variable. If that variable is unset the endpoint is **disabled** and returns `403`, rather than being left open.
+
+**Request**
+
+```bash
+curl -X POST http://localhost:8765/amp/v1/lifecycle/run \
+  -H "X-AMP-Admin-Token: $AMP_ADMIN_TOKEN"
+```
+
+**Headers**
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `X-AMP-Admin-Token` | Yes | Must equal the server's `AMP_ADMIN_TOKEN` |
+
+**Response `200 OK`**
+
+```json
+{
+  "transitions": {
+    "active_to_stale": 3,
+    "stale_to_archived": 1,
+    "stale_to_active": 0
+  }
+}
+```
+
+**Response fields**
+
+| Field | Description |
+|-------|-------------|
+| `transitions` | Counts of cells moved, keyed by `<from>_to_<to>`. All keys are present even when zero. An empty object (`{}`) means the run failed and the error was logged. |
+
+**Error responses**
+
+| Status | `error.code` | Cause |
+|--------|-------------|-------|
+| `403` | `ADMIN_DISABLED` | `AMP_ADMIN_TOKEN` is not set on the server |
+| `403` | `ACCESS_DENIED` | Header missing or does not match `AMP_ADMIN_TOKEN` |
+
+---
+
 ## Data types
 
 ### MemoryType
@@ -517,7 +569,7 @@ The lifecycle engine computes a decay score on each cell to drive automatic `act
 score = importance × confidence × e^(−decay_rate × Δt_days)
 ```
 
-A cell transitions to `stale` when its score falls below `0.3`. A `stale` cell transitions to `archived` after 30 days without an update.
+A cell transitions to `stale` when its score falls below `0.3`. A `stale` cell returns to `active` once its score rises back to `0.3` or above — which a re-read (resetting `last_accessed_at`) or a `scoring` `PATCH` can do. A `stale` cell still below threshold transitions to `archived` after 30 days without an update. These transitions are applied by the background scheduler, or on demand via [`POST /lifecycle/run`](#post-lifecyclerun).
 
 ---
 

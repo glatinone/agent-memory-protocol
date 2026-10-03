@@ -1,4 +1,5 @@
 # Documentation site dependencies (MkDocs Material).
-# Build: cd docs && mkdocs build
-# Serve: cd docs && mkdocs serve
+# mkdocs.yml lives at the repo root, so build and serve from there:
+# Build: mkdocs build --strict
+# Serve: mkdocs serve
 mkdocs-material>=9.5,<10

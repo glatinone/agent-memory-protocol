@@ -18,7 +18,17 @@ No. `DELETE /amp/v1/memories/{id}` is a soft-delete: it sets `lifecycle.status` 
 
 ## How does decay work in plain English?
 
-Every memory cell has an `importance` score, a `confidence` score, and a `decay_rate`. Each day that passes, the effective score drops according to `importance × confidence × e^(−decay_rate × days_since_creation)`. Per the spec, once that score falls below `0.3` the cell should transition from `active` to `stale`, and after 30 days stale without an update, to `archived`. The reference server implements this state machine in `LifecycleEngine.process_all()`, but the spec leaves the run schedule implementation-defined, so wire it into a periodic job (cron, APScheduler, etc.) if you're running the reference server yourself. You can slow decay by setting a low `decay_rate` (e.g. `0.001`) or reset it by bumping `importance` or `confidence` via a PATCH.
+Every memory cell has an `importance` score, a `confidence` score, and a `decay_rate`. Each day that passes, the effective score drops according to `importance × confidence × e^(−decay_rate × days_since_creation)`. Per the spec, once that score falls below `0.3` the cell should transition from `active` to `stale`, and after 30 days stale without an update, to `archived`. Reading a cell resets its clock, and bringing its score back above `0.3` (via a `PATCH` of `scoring`) returns a `stale` cell to `active` on the next engine run.
+
+The reference server runs `LifecycleEngine.process_all()` on a background schedule by default, so a fresh `docker compose up -d` decays cells without any extra setup. The interval defaults to one hour and is configurable:
+
+| Environment variable | Default | Meaning |
+|---|---|---|
+| `AMP_LIFECYCLE_ENABLED` | `true` | Set to `false` to run no background decay and drive it yourself |
+| `AMP_LIFECYCLE_INTERVAL_SECONDS` | `3600` | Seconds between runs |
+| `AMP_ADMIN_TOKEN` | *(unset)* | Enables `POST /amp/v1/lifecycle/run`; unset leaves it disabled (403) |
+
+If you would rather own the schedule — an external cron, a sidecar — set `AMP_LIFECYCLE_ENABLED=false` and have your job call `POST /amp/v1/lifecycle/run` with `X-AMP-Admin-Token`. You can slow decay by setting a low `decay_rate` (e.g. `0.001`) or reset it by bumping `importance` or `confidence` via a `PATCH`.
 
 ## Can two agents share the same memory cell?
 

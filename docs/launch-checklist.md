@@ -3,7 +3,7 @@
 This checklist tracks whether the Agent Memory Protocol (AMP) repository and
 associated launch material are actually ready for a public launch attempt,
 not just present, but verified against the real code and docs. Last verified
-2026-08-03.
+2026-10-03.
 
 ## 1. Documentation & Specification
 - [x] Top-level `README.md` complete and landing-page ready
@@ -29,8 +29,8 @@ not just present, but verified against the real code and docs. Last verified
 ## 2. Code Implementations
 - [x] Reference server (`server/`) complete with FastAPI and ChromaDB
       integration
-- [x] All server tests pass: 57 passing (`uv run pytest`, verified
-      2026-08-03; the checklist previously said 55)
+- [x] All server tests pass: 70 passing (`pytest -v`, verified
+      2026-10-03; the checklist previously said 57, then 55)
 - [x] Python SDK client (`sdk/amp_client/`) complete with sync, async, and
       LangChain support, 14 tests passing
 - [x] Multi-agent demo (`examples/multi-agent-demo/`) implemented and runs
@@ -44,19 +44,17 @@ not just present, but verified against the real code and docs. Last verified
       stable release broke `server`'s install (`mcp.server.fastmcp` no
       longer exists); pinned to `mcp>=1.28.1,<2` (2026-07-31). CI verified
       green on `master` since
-- [ ] `LifecycleEngine.process_all()` (the decay to stale to archived state
-      machine) is implemented and unit-tested, but nothing in `main.py`
-      ever calls it. The spec itself says the run schedule is
-      "implementation-defined," and the reference server doesn't define
-      one yet. Until this is wired into a periodic job, decay transitions
-      described in the README/FAQ don't actually happen in a running
-      deployment. Needs a design decision (background asyncio task in the
-      FastAPI lifespan, an admin endpoint, an external cron hitting a new
-      route) before launch claims "automatic" decay without qualification.
-- [ ] `sdk/python/amp/` is an unbuilt shim package inconsistent with the
-      real installable `amp_client` package. Needs a design decision
-      (wire into the build or delete), unrelated to launch readiness but
-      worth resolving before drawing outside attention to the SDK layout.
+- [x] `LifecycleEngine.process_all()` (the decay → stale → archived state machine)
+      is now run on a schedule by the reference server: a background asyncio
+      task started from the FastAPI `lifespan`, on by default, with an
+      admin-token-gated `POST /amp/v1/lifecycle/run` for on-demand runs and a
+      configurable interval (`AMP_LIFECYCLE_INTERVAL_SECONDS`, default 3600).
+      Wired and verified 2026-10-03; the `active → stale`, `stale → active`,
+      and `stale → archived` transitions now actually happen in a running
+      deployment. 13 new tests (70 passing, was 57).
+- [x] `sdk/python/amp/` shim removed (2026-10-03). It was four dead re-export
+      files referenced by nothing; `sdk`'s installable package was always
+      `sdk/amp_client/`, which is what the tests and docs use.
 
 ## 3. Launch Marketing Material
 - [x] Draft blog post written (`docs/blog/launch-post.md`), corrected
@@ -95,11 +93,11 @@ not just present, but verified against the real code and docs. Last verified
 
 ## Still blocking an actual launch
 
-1. Decide how `LifecycleEngine.process_all()` gets scheduled in the
-   reference server (item above). This is the biggest gap between what the
-   marketing copy describes and what a fresh `docker compose up -d` does.
-2. Decide the `sdk/python/amp/` shim's fate.
-3. Kiel's own call on whether this project gets ongoing development or
+1. Kiel's own call on whether this project gets ongoing development or
    stays at its current, honestly-documented depth (see
    `projects/agent-memory-protocol.md` roadmap). That decision should
    land before any of this launch material actually gets published.
+2. The launch drafts (`docs/blog/launch-post.md`, `docs/hn-submission.md`)
+   were written before the decay scheduler was wired up and before the
+   `stale → active` fix; re-read them immediately before publishing, since
+   the scheduler changes what they should say about decay.

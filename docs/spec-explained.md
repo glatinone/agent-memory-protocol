@@ -63,13 +63,10 @@ To prevent memory bloat and ensure agents stay focused on relevant information, 
 stateDiagram-v2
     [*] --> active : Create (POST /memories)
     active --> stale : Decay (Score < 0.3)
-    stale --> active : Access / Update (PATCH / GET)
-    stale --> archived : 30 days without update
-    archived --> active : Explicit PATCH
-    active --> deleted : Delete (DELETE /memories/{id})
-    stale --> deleted : Delete (DELETE /memories/{id})
+    stale --> active : Score recovers (PATCH / access)
+    stale --> archived : 30 days stale without update
     archived --> deleted : Delete (DELETE /memories/{id})
-    deleted --> [*] : Purge (After 30 days)
+    deleted --> [*] : Purge (admin, after 30-day window)
 ```
 
 ### The Decay Formula
@@ -87,9 +84,9 @@ Where:
 ### Status Transitions
 
 1.  **`active`**: The starting state. The cell is fully searchable and accessible.
-2.  **`stale`**: When the `decay_score` falls **below `0.3`**, the cell automatically transitions to `stale`. Stale memories are excluded from default search queries unless explicitly requested. Reading or updating a stale memory resets its clock and transitions it back to `active`.
-3.  **`archived`**: If a memory remains in the `stale` state for **30 consecutive days** without any access or update, the lifecycle engine automatically transitions it to `archived` (cold storage).
-4.  **`deleted`**: A soft-deleted state triggered by a `DELETE` request. The cell is hidden from searches and standard reads.
+2.  **`stale`**: When the `decay_score` falls **below `0.3`**, the cell automatically transitions to `stale`. Stale memories are excluded from default search queries unless explicitly requested. Reading a stale memory resets its clock, and once its `decay_score` is back at `0.3` or above — whether from that reset or a `scoring` `PATCH` — the lifecycle engine transitions it back to `active` on its next run.
+3.  **`archived`**: If a memory remains in the `stale` state for **30 consecutive days** without any access or update, the lifecycle engine automatically transitions it to `archived` (cold storage). Cells in `archived` cannot transition back through the standard API; re-create the cell if you need it again.
+4.  **`deleted`**: A soft-deleted state triggered by `DELETE` on an `archived` cell. The cell is hidden from searches and standard reads. `deleted` is terminal through the API; the reference server cannot delete a cell that is still `active` or `stale`.
 
 ---
 

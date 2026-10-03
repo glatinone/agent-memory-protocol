@@ -40,9 +40,10 @@ process that created it.
 ## Status
 
 AMP is an early, honest reference implementation. The spec is `v0.1.0`, the SDK is not yet
-on PyPI (install from source), and the decay scheduler is implementation-defined — the
-reference server does not currently run it on a timer. Both are tracked openly rather than
-glossed over.
+on PyPI (install from source), and the decay engine runs on a background schedule by
+default — the interval configurable, or the scheduler disabled for deployments that prefer
+to drive it themselves. The SDK's distribution status and the scheduler's defaults are
+tracked openly rather than glossed over.
 
 ## Get involved
 
