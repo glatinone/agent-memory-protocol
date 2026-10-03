@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -13,6 +14,7 @@ from fastapi.responses import JSONResponse, Response
 
 from amp_server.access_control import check_read_access, check_write_access
 from amp_server.lifecycle import LifecycleEngine
+from amp_server.scheduler import lifecycle_loop, run_lifecycle, settings_from_env
 from amp_server.models import (
     ErrorDetail,
     ErrorResponse,
@@ -36,13 +38,33 @@ logger = logging.getLogger(__name__)
 
 AMP_VERSION = "0.1.0"
 
+
+def configure_logging() -> None:
+    """Make `amp_server.*` logs visible under any ASGI server.
+
+    Uvicorn configures only its own `uvicorn.*` loggers and never the root
+    logger, so module loggers like this one go nowhere by default — the server
+    would start, schedule decay, and log none of it. `basicConfig` is a no-op
+    when the embedder has already configured logging, so this defers to it.
+    """
+    logging.basicConfig(
+        level=os.environ.get("AMP_LOG_LEVEL", "INFO").upper(),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
 _storage: ChromaAdapter | None = None
 _lifecycle: LifecycleEngine | None = None
+_lifecycle_settings = settings_from_env()
 
 
 def get_storage() -> ChromaAdapter:
     assert _storage is not None, "Storage not initialized — lifespan not started"
     return _storage
+
+
+def get_lifecycle() -> LifecycleEngine:
+    assert _lifecycle is not None, "LifecycleEngine not initialized — lifespan not started"
+    return _lifecycle
 
 
 # ---------------------------------------------------------------------------
@@ -52,13 +74,39 @@ def get_storage() -> ChromaAdapter:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _storage, _lifecycle
+    global _storage, _lifecycle, _lifecycle_settings
+    configure_logging()
     persist_dir = os.environ.get("AMP_PERSIST_DIR")
     _storage = ChromaAdapter(persist_directory=persist_dir)
     _lifecycle = LifecycleEngine(_storage)
+
+    # Read settings here, not only at import: a test (or an embedder) can set
+    # AMP_LIFECYCLE_* before starting the app and expect it to take effect.
+    _lifecycle_settings = settings_from_env()
+
+    task: asyncio.Task[None] | None = None
+    if _lifecycle_settings.enabled:
+        task = asyncio.create_task(
+            lifecycle_loop(_lifecycle, _lifecycle_settings.interval_seconds)
+        )
+        logger.info(
+            "Lifecycle scheduler started (every %ds)",
+            _lifecycle_settings.interval_seconds,
+        )
+    else:
+        logger.info("Lifecycle scheduler disabled (AMP_LIFECYCLE_ENABLED=false)")
+
     logger.info("AMP Server started")
-    yield
-    logger.info("AMP Server shutting down")
+    try:
+        yield
+    finally:
+        if task is not None:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        logger.info("AMP Server shutting down")
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +148,17 @@ def _access_denied() -> JSONResponse:
     )
 
 
+def _admin_disabled() -> JSONResponse:
+    """Manual lifecycle runs are opt-in: no token configured means no access."""
+    return JSONResponse(
+        status_code=403,
+        content=_err(
+            "ADMIN_DISABLED",
+            "Manual lifecycle runs are disabled; set AMP_ADMIN_TOKEN to enable",
+        ),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Health & spec
 # ---------------------------------------------------------------------------
@@ -118,8 +177,37 @@ async def spec() -> dict[str, Any]:
             "mcp_compatible": False,
             "storage_backends": ["chroma"],
             "max_cell_size_bytes": 65536,
+            "lifecycle_scheduler": {
+                "enabled": _lifecycle_settings.enabled,
+                "interval_seconds": _lifecycle_settings.interval_seconds,
+                "manual_run_endpoint": "/amp/v1/lifecycle/run",
+            },
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# Lifecycle
+# ---------------------------------------------------------------------------
+
+
+@router.post("/lifecycle/run")
+async def run_lifecycle_now(
+    x_amp_admin_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Trigger one decay pass immediately — for cron, ops, or tests.
+
+    Gated on `AMP_ADMIN_TOKEN` because it mutates lifecycle state for every
+    cell in storage. Unset token == disabled (403), not an open endpoint.
+    """
+    configured = _lifecycle_settings.admin_token
+    if not configured:
+        return _admin_disabled()
+    if x_amp_admin_token != configured:
+        return _access_denied()
+
+    transitions = await run_lifecycle(get_lifecycle())
+    return {"transitions": transitions}
 
 
 # ---------------------------------------------------------------------------

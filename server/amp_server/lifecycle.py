@@ -45,6 +45,14 @@ class LifecycleEngine:
         now = datetime.now(timezone.utc)
 
         if cell.lifecycle.status == LifecycleStatus.STALE:
+            # Spec §2: a PATCH that raises the decay score back above threshold
+            # returns the cell to `active` on the next engine run. A GET resets
+            # `last_accessed_at`, which lifts the score the same way — so a
+            # re-read cell comes back to `active` rather than staying stale
+            # forever until it is archived.
+            if score >= STALE_THRESHOLD:
+                return LifecycleStatus.ACTIVE
+
             last_update = cell.lifecycle.last_updated_at or cell.lifecycle.created_at
             if last_update.tzinfo is None:
                 last_update = last_update.replace(tzinfo=timezone.utc)
