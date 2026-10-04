@@ -21,6 +21,7 @@ from amp_server.errors import (
     admin_disabled,
     invalid_transition,
     missing_agent_id,
+    rate_limited,
     unauthenticated,
 )
 from amp_server.lifecycle import LifecycleEngine
@@ -41,6 +42,11 @@ from amp_server.models import (
     SearchResponse,
 )
 from amp_server.paging import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, readable_page
+from amp_server.ratelimit import (
+    ScoringPatchLimiter,
+    limit_from_env,
+    patch_touches_scoring,
+)
 from amp_server.scheduler import lifecycle_loop, run_lifecycle, settings_from_env
 from amp_server.storage.base import (
     InvalidTransitionError,
@@ -75,6 +81,10 @@ _lifecycle_settings = settings_from_env()
 # trusted as the spec's binding describes. Set from the lifespan, so a key store
 # that cannot be read stops the server rather than turning into a 401 later.
 _api_key_store: ApiKeyStore | None = None
+# Resolved here, like the lifecycle settings, so a test can swap either without
+# reaching into the environment. The limiter is the stateful half.
+_scoring_limit = limit_from_env()
+_scoring_limiter = ScoringPatchLimiter(_scoring_limit)
 
 
 def _build_storage() -> StorageAdapter:
@@ -162,6 +172,7 @@ def get_lifecycle() -> LifecycleEngine:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _storage, _lifecycle, _lifecycle_settings, _api_key_store
+    global _scoring_limit, _scoring_limiter
     configure_logging()
     # Built here, not at import: a misconfigured backend must stop the server
     # from starting rather than surface as poor search results later.
@@ -170,6 +181,17 @@ async def lifespan(app: FastAPI):
     # Same reason: a key store that cannot be read must stop the server, not
     # fall back to trusting an unverified header.
     _api_key_store = store_from_env()
+
+    # Read again here for the same reason the lifecycle settings are: a test (or
+    # an embedder) can set AMP_SCORING_PATCH_LIMIT before starting the app.
+    _scoring_limit = limit_from_env()
+    _scoring_limiter = ScoringPatchLimiter(_scoring_limit)
+    if _scoring_limit.enabled:
+        logger.info(
+            "Scoring PATCH limit: %d per %ds per cell",
+            _scoring_limit.max_patches,
+            _scoring_limit.window_seconds,
+        )
 
     # Read settings here, not only at import: a test (or an embedder) can set
     # AMP_LIFECYCLE_* before starting the app and expect it to take effect.
@@ -227,7 +249,11 @@ async def _amp_error_handler(request: Request, exc: AMPError) -> JSONResponse:
     `{"error": {"code", "message", "details"}}` body instead of each route
     building its own, and so route handlers can stay annotated `-> dict`.
     """
-    return JSONResponse(status_code=exc.status_code, content=exc.to_response())
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=exc.to_response(),
+        headers=exc.headers or None,
+    )
 
 
 # The error envelope is part of the protocol, so it belongs in the contract
@@ -245,6 +271,13 @@ _UNAUTHENTICATED: dict[int | str, dict[str, Any]] = {
         "model": ErrorResponse,
         "description": "X-AMP-API-Key is missing or not valid for this agent id "
         "(only when AMP_API_KEYS_FILE is configured)",
+    }
+}
+_RATE_LIMITED: dict[int | str, dict[str, Any]] = {
+    429: {
+        "model": ErrorResponse,
+        "description": "Too many scoring updates for this cell; see Retry-After "
+        "and GET /spec's scoring_patch_limit",
     }
 }
 _ACCESS_DENIED: dict[int | str, dict[str, Any]] = {
@@ -288,6 +321,7 @@ async def spec() -> dict[str, Any]:
             # before it makes a call that would fail with 401.
             "api_keys_required": _api_key_store is not None,
             "max_page_size": MAX_PAGE_SIZE,
+            "scoring_patch_limit": _scoring_limit.to_json(),
             "embedding": get_storage().embedding,
             "max_cell_size_bytes": MAX_CELL_SIZE_BYTES,
             "retention_days": get_storage().retention_days,
@@ -452,6 +486,7 @@ async def get_memory(
         | _ACCESS_DENIED
         | _INVALID_TRANSITION
         | _CELL_TOO_LARGE
+        | _RATE_LIMITED
     ),
 )
 async def update_memory(
@@ -474,6 +509,17 @@ async def update_memory(
 
     if not check_write_access(cell, x_amp_agent_id):
         raise access_denied()
+
+    if patch_touches_scoring(body):
+        # RFC §5: a caller looping on `scoring` can hold a cell active past its
+        # window or force a competitor into archive. Checked after the access
+        # rules, so a caller who may not write this cell is told that, and told
+        # nothing about how much budget is left. An allowed edit is recorded
+        # here, before the write, so a write that then fails does not buy the
+        # caller a free retry.
+        wait = _scoring_limiter.check_and_record(memory_id)
+        if wait:
+            raise rate_limited(wait)
 
     try:
         updated = await storage.update(memory_id, body)
@@ -516,6 +562,10 @@ async def delete_memory(
     except InvalidTransitionError as exc:
         raise invalid_transition(exc.message) from exc
 
+    # The cell is gone from the API's point of view; its scoring budget has
+    # nothing left to protect, and holding the counters would keep an id alive
+    # in memory for a cell no caller can reach.
+    _scoring_limiter.forget(memory_id)
     return Response(status_code=204)
 
 

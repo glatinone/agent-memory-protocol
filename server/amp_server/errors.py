@@ -26,11 +26,15 @@ class AMPError(Exception):
         code: str,
         message: str,
         details: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         self.status_code = status_code
         self.code = code
         self.message = message
         self.details = details or {}
+        # Part of the error for a caller who can act on it: a rate limit that
+        # does not say how long to wait leaves the client to guess.
+        self.headers = headers or {}
         super().__init__(message)
 
     def to_response(self) -> dict[str, Any]:
@@ -68,6 +72,21 @@ def unauthenticated() -> AMPError:
         401,
         "UNAUTHENTICATED",
         "X-AMP-API-Key is missing or not valid for this agent id",
+    )
+
+
+def rate_limited(retry_after_seconds: int) -> AMPError:
+    """Too many scoring edits on one cell (RFC §5: decay-score manipulation).
+
+    `429` with `Retry-After`, because the caller can act on the number: it is
+    exactly how long until the oldest allowed edit ages out of the window.
+    """
+    return AMPError(
+        429,
+        "RATE_LIMITED",
+        f"too many scoring updates for this cell; retry in {retry_after_seconds}s",
+        details={"retry_after_seconds": retry_after_seconds},
+        headers={"Retry-After": str(retry_after_seconds)},
     )
 
 

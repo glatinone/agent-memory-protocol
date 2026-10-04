@@ -151,6 +151,20 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   no schema can be found the vectors report as `skip` with the flag to pass;
   `--only schema` exits non-zero, so a skip cannot quietly pass for a pass.
 
+- **Scoring edits are rate-limited per cell** (`amp_server.ratelimit`).
+  RFC-AMP-001 §5 lists decay-score manipulation as a threat and asks
+  implementations to rate-limit scoring PATCHes per cell; nothing did. A caller
+  looping on `scoring` can hold a cell `active` past its relevance window or drive
+  a competing memory into archive. The budget is per cell, counts only PATCHes that
+  actually carry `scoring` (refusing ordinary content edits to cover an attack they
+  have nothing to do with would be an outage, not a mitigation), and answers
+  `429 RATE_LIMITED` with `Retry-After`. A refused attempt is not recorded, so
+  hammering cannot push back the caller's own deadline. Access is checked first, so
+  a caller who may not write the cell learns nothing about the remaining budget.
+  Default 5 per cell per hour, changed with `AMP_SCORING_PATCH_LIMIT` /
+  `AMP_SCORING_PATCH_WINDOW_SECONDS`, disabled with `0`, and advertised at
+  `GET /spec` as `scoring_patch_limit` (`null` when off). Counters are per process.
+
 ### Changed
 - **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a
   conflict with `{"detail": ...}` while `DELETE` answered with

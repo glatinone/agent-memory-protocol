@@ -136,6 +136,7 @@ curl http://localhost:8765/amp/v1/spec
     "mcp_compatible": false,
     "storage_backends": ["chroma"],
     "api_keys_required": false,
+    "scoring_patch_limit": {"max_patches": 5, "window_seconds": 3600},
     "embedding": {"provider": "chroma-default", "dimensions": 384},
     "max_cell_size_bytes": 65536,
     "retention_days": 30,
@@ -158,6 +159,7 @@ suite checks it against the server's own numbers rather than a fixed value:
 | Capability | What it commits the server to |
 |---|---|
 | `mcp_compatible` | Whether **this HTTP server** speaks MCP directly. It is `false`: the MCP integration ships as a separate stdio process (`amp-mcp`, see `examples/mcp-claude-desktop/`), not as an endpoint on this API. |
+| `scoring_patch_limit` | How often one cell's `scoring` may be rewritten, and over what window (`null` when the limit is off). Enforced on `PATCH`: RFC-AMP-001 §5 names decay-score manipulation as a threat, because a caller looping on `scoring` can hold a cell `active` past its relevance window or push a competing memory into archive. A refusal is `429 RATE_LIMITED` with `Retry-After`. Section `PATCH /memories/{memory_id}` below covers what is and is not counted. |
 | `max_page_size` | The largest `limit` the listing endpoints accept (`100`). A larger value is refused with `422` rather than silently clamped, so a client never believes it received a complete page when it did not. |
 | `api_keys_required` | Whether this server requires `X-AMP-API-Key` (`AMP_API_KEYS_FILE` is set). Reported here so a client learns it needs a key before a call fails with `401`. |
 | `storage_backends` | The adapter actually wired in (`chroma` or `postgres`), selected with `AMP_STORAGE_BACKEND`; see [getting started](getting-started.md#6-choosing-a-storage-backend). |
@@ -448,6 +450,34 @@ Fields that cannot be patched: `id`, `amp_version`, `identity`, `lifecycle.creat
 | `404` | `NOT_FOUND` | No cell with the given ID |
 | `403` | `FORBIDDEN` | Caller is not in `writable_by` |
 | `422` | `VALIDATION_ERROR` | Invalid field value |
+
+---
+
+### Scoring updates are rate-limited per cell
+
+RFC-AMP-001 §5 lists decay-score manipulation as a threat: a caller PATCHing
+`scoring` in a loop can keep a cell `active` past its intended relevance window,
+or force a competing memory into archive. Two things bound it. A scoring change
+only takes effect on the next lifecycle pass, so the engine's cadence limits how
+fast a manipulation lands; and the server budgets how often one cell's `scoring`
+may be rewritten at all.
+
+- Only a PATCH that carries `scoring` is counted. Rewriting `content`, `provenance`
+  or `access_policy` is unaffected. `{"scoring": null}` changes nothing, so it
+  costs nothing.
+- The budget is per cell, so one busy cell cannot use up another's.
+- Refused edits are `429 RATE_LIMITED`, with `Retry-After` in seconds and the same
+  number in `error.details.retry_after_seconds`. The number is how long until the
+  oldest allowed edit leaves the window - a refused attempt is not recorded, so
+  retrying early does not push your own deadline back.
+- Access is checked first: a caller who may not write the cell gets `403` and
+  learns nothing about the remaining budget.
+- Default: 5 edits per cell per hour. `AMP_SCORING_PATCH_LIMIT` and
+  `AMP_SCORING_PATCH_WINDOW_SECONDS` change it; `AMP_SCORING_PATCH_LIMIT=0`
+  disables it, and [`GET /spec`](#get-spec) then reports `null`.
+
+The counters live in the server process, so two processes over one storage backend
+keep two budgets.
 
 ---
 
