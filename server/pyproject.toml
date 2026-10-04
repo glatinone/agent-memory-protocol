@@ -15,13 +15,15 @@ dependencies = [
     "chromadb>=0.5.0",
     "python-ulid>=2.2.0",
     "mcp>=1.28.1,<2",
+    # Runtime, not just for tests: the openai-compatible embedding provider
+    # calls an /embeddings endpoint with it.
+    "httpx>=0.27,<1",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
-    "httpx>=0.27.0",
     "jsonschema>=4.20,<5",
     "ruff>=0.6.0",
     "mypy>=1.11.0",

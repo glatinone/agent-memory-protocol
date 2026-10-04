@@ -13,6 +13,7 @@ from fastapi import APIRouter, FastAPI, Header, Request
 from fastapi.responses import JSONResponse, Response
 
 from amp_server.access_control import check_read_access, check_write_access
+from amp_server.embeddings import provider_from_env
 from amp_server.errors import (
     AMPError,
     access_denied,
@@ -87,7 +88,12 @@ async def lifespan(app: FastAPI):
     global _storage, _lifecycle, _lifecycle_settings
     configure_logging()
     persist_dir = os.environ.get("AMP_PERSIST_DIR")
-    _storage = ChromaAdapter(persist_directory=persist_dir)
+    # Built here, not at import: a misconfigured provider must stop the server
+    # from starting rather than surface as poor search results later.
+    _storage = ChromaAdapter(
+        persist_directory=persist_dir,
+        embedding_provider=provider_from_env(),
+    )
     _lifecycle = LifecycleEngine(_storage)
 
     # Read settings here, not only at import: a test (or an embedder) can set
@@ -196,6 +202,7 @@ async def spec() -> dict[str, Any]:
         "capabilities": {
             "mcp_compatible": False,
             "storage_backends": ["chroma"],
+            "embedding": get_storage().embedding,
             "max_cell_size_bytes": MAX_CELL_SIZE_BYTES,
             "lifecycle_scheduler": {
                 "enabled": _lifecycle_settings.enabled,

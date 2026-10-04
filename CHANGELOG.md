@@ -57,6 +57,18 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   advertised `manual_run_endpoint` is a route that exists, and `/spec` and
   `/health` agree on the version - so it holds for any implementation, not only
   this one.
+- **A choice of embedding provider** (`amp_server.embeddings`). The server used
+  to embed with whatever Chroma picked, with no way to choose, which is fine for
+  a demo and wrong for anyone with an embedding budget, a language MiniLM does
+  not cover well, or a rule about where their text may go. `AMP_EMBEDDING_PROVIDER`
+  now selects one: `default` keeps the local model, and `openai-compatible`
+  points at any service speaking the OpenAI `/embeddings` API (OpenAI, Azure,
+  Ollama, LM Studio, vLLM). A misconfigured provider stops the server from
+  starting rather than falling back, because a silent fallback produces vectors
+  nobody can search consistently. `GET /spec` reports the provider and the width
+  of the vectors it produces, and the adapter hands Chroma finished vectors
+  instead of an embedding function, so there is one place text becomes numbers.
+  `httpx` moves from the dev extra to a runtime dependency for this.
 
 ### Changed
 - **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a
@@ -77,6 +89,11 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   "server unreachable" message.
 
 ### Fixed
+- Every documented example in `docs/getting-started.md` and
+  `docs/api-reference.md` used a cell id without the `mem_` prefix, which the
+  protocol's own schema forbids (`^mem_[0-9A-Z]{26}$`). Eleven examples across
+  two files, including the curl commands and an error message, showed a document
+  shape a reader could not have produced.
 - The API reference's endpoint table omitted `GET /memories` and its
   `/memories/query` alias, so two of the ten documented operations were missing
   from the only place a reader looks for them.

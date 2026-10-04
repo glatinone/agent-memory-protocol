@@ -169,6 +169,25 @@ async def test_the_manual_run_endpoint_is_a_route_that_exists():
 
 
 @pytest.mark.asyncio
+async def test_spec_reports_the_embedding_provider_in_use():
+    """The advertised provider must be the one producing vectors."""
+    from amp_server.embeddings import ChromaDefaultEmbeddingProvider
+
+    async with await _client() as client:
+        response = await client.get("/amp/v1/spec")
+
+    advertised = response.json()["capabilities"]["embedding"]
+    provider = ChromaDefaultEmbeddingProvider()
+
+    assert advertised == {
+        "provider": provider.name,
+        "dimensions": provider.dimensions,
+    }
+    # The dimension claim is a measurement, not a constant someone typed.
+    assert len(provider.embed(["probe"])[0]) == advertised["dimensions"]
+
+
+@pytest.mark.asyncio
 async def test_the_advertised_storage_backend_is_the_one_in_use():
     import amp_server.main as main_mod
 

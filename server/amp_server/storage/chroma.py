@@ -9,6 +9,11 @@ from typing import Any, cast
 import chromadb
 
 from amp_server.access_control import check_read_access
+from amp_server.embeddings import (
+    ChromaDefaultEmbeddingProvider,
+    EmbeddingProvider,
+    describe,
+)
 from amp_server.limits import enforce_cell_size
 from amp_server.models import (
     LifecycleStatus,
@@ -84,15 +89,40 @@ class ChromaAdapter(StorageAdapter):
         self,
         persist_directory: str | None = None,
         collection_name: str = "amp_memories",
+        embedding_provider: EmbeddingProvider | None = None,
     ) -> None:
         if persist_directory:
             self._client = chromadb.PersistentClient(path=persist_directory)
         else:
             self._client = chromadb.EphemeralClient()
+        self._embedding_provider = (
+            embedding_provider or ChromaDefaultEmbeddingProvider()
+        )
+        # No embedding function on the collection: the adapter embeds through
+        # the provider and hands Chroma finished vectors, so there is exactly
+        # one place text becomes numbers and the provider can be swapped without
+        # Chroma storing a model identity of its own.
         self._collection = self._client.get_or_create_collection(
             name=collection_name,
             metadata={"hnsw:space": "cosine"},
+            embedding_function=None,
         )
+
+    @property
+    def embedding(self) -> dict[str, Any]:
+        """What embeds text here, for `GET /spec`."""
+        return describe(self._embedding_provider)
+
+    def _embed(self, texts: list[str]) -> list[Any]:
+        """Embed through the configured provider.
+
+        Typed loosely on purpose: Chroma annotates `embeddings` as a union of
+        sequence types, and a plain `list[list[float]]` does not satisfy it by
+        invariance even though every element is a float and Chroma accepts it.
+        The vectors themselves are typed where they are produced, in the
+        provider.
+        """
+        return [list(vector) for vector in self._embedding_provider.embed(texts)]
 
     async def save(self, cell: MemoryCell) -> str:
         # Checked before anything is written, so a refused cell leaves no trace.
@@ -101,6 +131,7 @@ class ChromaAdapter(StorageAdapter):
         self._collection.add(
             ids=[cell.id],
             documents=[cell.content.text],
+            embeddings=self._embed([cell.content.text]),
             metadatas=[{_CELL_JSON_KEY: json.dumps(cell_data)}],
         )
         return cell.id
@@ -189,7 +220,7 @@ class ChromaAdapter(StorageAdapter):
         # unconditionally reads the whole collection) for this reference
         # implementation.
         results = self._collection.query(
-            query_texts=[request.query],
+            query_embeddings=self._embed([request.query]),
             n_results=count,
             include=["metadatas", "distances"],
         )
@@ -276,6 +307,7 @@ class ChromaAdapter(StorageAdapter):
         self._collection.update(
             ids=[memory_id],
             documents=[cell.content.text],
+            embeddings=self._embed([cell.content.text]),
             metadatas=[{_CELL_JSON_KEY: json.dumps(cell_data)}],
         )
 

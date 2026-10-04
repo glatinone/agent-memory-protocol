@@ -162,3 +162,38 @@ Add the following JSON snippet to your `claude_desktop_config.json` (typically l
 > [!IMPORTANT]
 > The command must be run in an environment where the `amp-server` package (containing the `amp_server` module) is installed. Ensure your python environment path or active virtual environment is correctly accessible to the command.
 
+---
+
+## 5. Choosing an embedding provider
+
+Memory cells are stored as vectors, so something has to turn text into them. By
+default the server uses the model Chroma ships (a local all-MiniLM-L6-v2), which
+needs no configuration and no network.
+
+To use a different one, set `AMP_EMBEDDING_PROVIDER`. The alternative that ships
+with the server is `openai-compatible`: it speaks the OpenAI `/embeddings` API,
+so it also works with Ollama, LM Studio, vLLM, and any other service that mirrors
+that shape.
+
+```bash
+export AMP_EMBEDDING_PROVIDER=openai-compatible
+export AMP_EMBEDDING_BASE_URL=http://localhost:11434/v1   # your service
+export AMP_EMBEDDING_MODEL=nomic-embed-text
+export AMP_EMBEDDING_API_KEY=...        # optional; omit for a local server
+export AMP_EMBEDDING_DIMENSIONS=768     # optional; reported at GET /spec
+```
+
+With this provider selected, memory text is sent to that endpoint. That is what
+choosing it means, and it is why the default stays local.
+
+Two things to know before switching a server that already holds data:
+
+- **Vectors from different models are not comparable.** Cells written under the
+  old provider were embedded in a different space, so search stops being
+  meaningful. Use a fresh `AMP_PERSIST_DIR`, or re-create the cells; re-embedding
+  in place is not automated.
+- **An unknown provider name stops the server from starting** instead of falling
+  back to the default, so a typo cannot quietly produce vectors nobody can search
+  consistently.
+
+`GET /spec` reports the provider in use and the width of the vectors it produces.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 from amp_server.models import (
     LifecycleStatus,
@@ -82,6 +83,16 @@ class StorageAdapter(ABC):
     @abstractmethod
     async def list_by_owner(self, owner_id: str) -> list[MemoryCell]:
         """Return all MemoryCells owned by the given owner_id."""
+
+    @property
+    def embedding(self) -> dict[str, Any] | None:
+        """What embeds text for this backend, reported by `GET /spec`.
+
+        An adapter that owns both storage and retrieval knows which embedding
+        model its vectors came from, and that is the answer `/spec` needs. None
+        means the backend has no embeddings of its own.
+        """
+        return None
 
     @abstractmethod
     async def list_all(self) -> list[MemoryCell]:
