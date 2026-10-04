@@ -79,6 +79,12 @@ not just present, but verified against the real code and docs. Last verified
 - [ ] These are still drafts, not a scheduled launch. Re-read them once
       more immediately before actually publishing, in case the SDK or
       server API shifts again before then.
+- [x] Drafts re-checked against the server (2026-10-04) after the hardening
+      chain landed. Corrected two claims that had become false - "ChromaDB is
+      the only storage backend" and "no auth on the memory endpoints" - and the
+      "what's next" list, which still promised a Postgres adapter and stronger
+      auth as future work. Release notes for v0.1.0 carried the same stale
+      claims and were rewritten in the same pass.
 
 ## 4. Community & Contribution Assets
 - [x] GitHub bug report template (`.github/ISSUE_TEMPLATE/bug_report.md`)

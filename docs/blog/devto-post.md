@@ -127,12 +127,12 @@ Being straight about this, because it matters more than a feature list:
 - **Not on PyPI or npm yet.** Install from the repo.
 - **No hosted service.** You self-host. That's on purpose for now: your memory data stays yours while the protocol gets validated.
 - **Python and Node.js clients only.** Go and Rust are planned.
-- **ChromaDB is the only storage backend** wired up.
-- **No auth on the memory endpoints.** Access control is per cell via the header, which suits local and single-tenant deployments, not an internet-facing server.
+- **Storage is pluggable.** ChromaDB is the default and needs no infrastructure; `AMP_STORAGE_BACKEND=postgres` keeps cells in PostgreSQL with `pgvector` instead.
+- **Auth is opt-in, and keys only.** By default the memory endpoints trust the `X-AMP-Agent-ID` header, which is the binding the spec describes. Set `AMP_API_KEYS_FILE` and a key is required. There are no scopes, expiry or rotation yet, so an internet-facing deployment still wants something in front of it.
 
 ## What's next
 
-More SDKs (Go, Rust), framework plugins beyond the existing LangChain integration, a Postgres storage adapter, and stronger auth for anyone who wants to run this in production. If that's the kind of thing you'd use, issues and PRs are open.
+More SDKs (Go, Rust), framework plugins beyond the existing LangChain integration, and auth that goes past a shared secret per agent: scopes, expiry, rotation, OIDC. The Postgres adapter landed in this release, along with an opt-in API-key mode, so those two are off the list. If that's the kind of thing you'd use, issues and PRs are open.
 
 If you've built multi-agent systems, I'd like to hear how you handle memory today, especially episodic vs semantic, and whether a shared schema across frameworks would actually help or just move the problem.
 

@@ -183,6 +183,16 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   shorter than `limit` is the last one; the response's `has_more` is available
   through the underlying client for callers who need it explicitly.
 
+- **Launch material brought back in line with the server.** The v0.1.0 release
+  notes were written before this chain and had become wrong in three places a
+  reader would act on: "Python only" (there is a Node SDK), "ChromaDB is the only
+  storage backend" (Postgres shipped), and "no authentication on the memory
+  endpoints" (opt-in API keys shipped). The test counts were stale by 3x. The
+  dev.to draft carried two of the same claims, the Show HN draft described one
+  SDK and one backend, and both still listed the Postgres adapter and stronger
+  auth as future work - they are in this release. The launch checklist records the
+  re-check, since catching exactly this is what it is for.
+
 ### Changed
 - **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a
   conflict with `{"detail": ...}` while `DELETE` answered with
