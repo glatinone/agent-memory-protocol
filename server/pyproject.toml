@@ -29,6 +29,12 @@ dev = [
     "mypy>=1.11.0",
 ]
 
+postgres = [
+    # Only the driver: vectors go over the wire in pgvector's text format, so the
+    # pgvector Python package is not a dependency.
+    "psycopg[binary]>=3.2,<4",
+]
+
 [project.scripts]
 amp-server = "amp_server.main:main"
 amp-mcp = "amp_server.mcp_server:main"
@@ -36,6 +42,13 @@ amp-mcp = "amp_server.mcp_server:main"
 [tool.pytest.ini_options]
 pythonpath = [".", "tests"]
 asyncio_mode = "auto"
+# `postgres` marks tests that need a live Postgres; `integration_required` marks
+# tests that must not be silently skipped, which is how CI proves the postgres
+# job actually ran the suite instead of skipping all of it.
+markers = [
+    "postgres: needs a live PostgreSQL with the pgvector extension",
+    "integration_required: fails instead of skipping when its dependency is absent",
+]
 
 [tool.ruff]
 target-version = "py311"

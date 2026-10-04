@@ -197,3 +197,33 @@ Two things to know before switching a server that already holds data:
   consistently.
 
 `GET /spec` reports the provider in use and the width of the vectors it produces.
+
+---
+
+## 6. Choosing a storage backend
+
+By default cells live in an embedded Chroma database under `AMP_PERSIST_DIR`, which
+suits a single process and a quick start.
+
+For anything else, `AMP_STORAGE_BACKEND=postgres` keeps cells in PostgreSQL with
+the `pgvector` extension, so AMP can sit next to data you already back up and
+monitor, and more than one server process can share it.
+
+```bash
+pip install "amp-server[postgres]"          # the optional driver
+export AMP_STORAGE_BACKEND=postgres
+export AMP_POSTGRES_DSN=postgresql://user:password@localhost:5432/amp
+```
+
+The adapter creates the `vector` extension, its table and its indexes on start.
+
+With the Compose file in `server/`, `docker compose --profile postgres up -d`
+brings up a Postgres-backed deployment using the `pgvector/pgvector:pg16` image.
+
+Both backends are held to the same behaviour, and CI proves it rather than
+asserting it: a job runs the whole storage contract suite against a real
+Postgres, including the test that the two backends rank the same data in the same
+order. `GET /spec` reports which one is in use under `storage_backends`.
+
+The embedding-provider rules in step 5 apply to either backend: switching
+provider invalidates the vectors already stored.

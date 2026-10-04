@@ -23,7 +23,7 @@ jobs:
         # silently stops checking the integration (and reports its
         # `# type: ignore[override]` as unused). CONTRIBUTING tells contributors
         # to install the same extra for the same reason.
-        run: pip install -e "server[dev]" -e "sdk[dev,langchain]" -e "conformance[dev]"
+        run: pip install -e "server[dev,postgres]" -e "sdk[dev,langchain]" -e "conformance[dev]"
       - name: Ruff lint (every Python package)
         run: ruff check server sdk conformance
       - name: Ruff format check (every Python package)
@@ -124,6 +124,41 @@ jobs:
       - name: Run Node SDK tests
         working-directory: sdk/node
         run: node --test test/client.test.js
+
+  # Exercises the Postgres backend against a real database. The adapter cannot be
+  # verified on a machine without Postgres, so the proof lives here: a service
+  # container, and AMP_REQUIRE_POSTGRES so the suite cannot pass by skipping.
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: amp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the server with the postgres extra
+        working-directory: server
+        run: pip install -e ".[dev,postgres]"
+
+      - name: Run the storage backend contract suite against Postgres
+        working-directory: server
+        env:
+          AMP_TEST_POSTGRES_DSN: postgresql://postgres:postgres@localhost:5432/amp
+          AMP_REQUIRE_POSTGRES: "1"
+        run: pytest -v tests/test_adapter_contract.py
 
   # Runs the conformance suite against the reference server, so the repository
   # is checked against the specification rather than only against itself.

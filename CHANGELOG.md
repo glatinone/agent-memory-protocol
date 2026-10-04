@@ -70,6 +70,24 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   instead of an embedding function, so there is one place text becomes numbers.
   `httpx` moves from the dev extra to a runtime dependency for this.
 
+- **A PostgreSQL + pgvector storage backend** (`amp_server.storage.postgres`),
+  selected with `AMP_STORAGE_BACKEND=postgres`. Chroma is an embedded store:
+  right for a reference deployment, and not what a team already running
+  infrastructure has. The adapter keeps cells in a table with a `vector` column
+  and an HNSW index (cosine, the same measure the Chroma adapter configures),
+  creates its schema on start, and ships as the optional `amp-server[postgres]`
+  extra. `server/docker-compose.yml` gained a `postgres` profile so
+  `docker compose --profile postgres up -d` works out of the box.
+  A second backend is only useful if it behaves like the first, so the search
+  ranking (`amp_server.ranking`) and the record rules
+  (`amp_server.storage.records`) moved into shared modules instead of being
+  copied, and `tests/test_adapter_contract.py` runs one behaviour suite against
+  both backends - including the test that they rank identical data in identical
+  order. CI runs that suite against a real `pgvector/pgvector:pg16` service
+  container with `AMP_REQUIRE_POSTGRES=1`, so the job cannot pass by skipping the
+  Postgres half. `_get_raw` is now declared on `StorageAdapter`, which it had to
+  be once more than one backend existed.
+
 ### Changed
 - **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a
   conflict with `{"detail": ...}` while `DELETE` answered with

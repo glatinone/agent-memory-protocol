@@ -36,8 +36,10 @@ cd agent-memory-protocol
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 
-# Reference server (ruff and mypy come in through the dev extra)
-cd server && pip install -e ".[dev]"
+# Reference server (ruff and mypy come in through the dev extra).
+# Add the postgres extra too if you are touching the Postgres adapter: mypy only
+# checks it against the real driver when psycopg is importable.
+cd server && pip install -e ".[dev,postgres]"
 
 # Python SDK, if you are working on the client
 cd ../sdk && pip install -e ".[dev,langchain]"
@@ -68,6 +70,22 @@ pytest -v python/tests
 # Node SDK, from sdk/node/ (runs against a live server when one is reachable)
 node --test test/client.test.js
 ```
+
+### Storage backends
+
+`tests/test_adapter_contract.py` runs the same behaviour tests against every
+backend. Chroma runs everywhere; Postgres needs a server with the `pgvector`
+extension:
+
+```bash
+export AMP_TEST_POSTGRES_DSN=postgresql://user:password@localhost:5432/amp
+pytest -q tests/test_adapter_contract.py
+```
+
+Without the DSN those cases skip, so the suite still runs on a laptop. CI sets
+`AMP_REQUIRE_POSTGRES`, which turns that skip into a failure - a suite that
+skips itself reports green, and the point of the job is to prove the adapter
+works against a real database.
 
 ### Conformance suite
 

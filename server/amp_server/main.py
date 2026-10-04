@@ -39,7 +39,11 @@ from amp_server.models import (
     SearchResponse,
 )
 from amp_server.scheduler import lifecycle_loop, run_lifecycle, settings_from_env
-from amp_server.storage.base import InvalidTransitionError, MemoryNotFoundError
+from amp_server.storage.base import (
+    InvalidTransitionError,
+    MemoryNotFoundError,
+    StorageAdapter,
+)
 from amp_server.storage.chroma import ChromaAdapter
 
 logger = logging.getLogger(__name__)
@@ -61,12 +65,45 @@ def configure_logging() -> None:
     )
 
 
-_storage: ChromaAdapter | None = None
+_storage: StorageAdapter | None = None
 _lifecycle: LifecycleEngine | None = None
 _lifecycle_settings = settings_from_env()
 
 
-def get_storage() -> ChromaAdapter:
+def _build_storage() -> StorageAdapter:
+    """Build the configured storage backend.
+
+    Selected with `AMP_STORAGE_BACKEND` (`chroma` by default). An unknown name, or
+    a backend whose configuration is missing, stops the server from starting:
+    running against a different store than the operator asked for is a data
+    problem, not a startup warning.
+    """
+    backend = os.environ.get("AMP_STORAGE_BACKEND", "chroma").strip().lower()
+    provider = provider_from_env()
+
+    if backend in ("", "chroma"):
+        return ChromaAdapter(
+            persist_directory=os.environ.get("AMP_PERSIST_DIR"),
+            embedding_provider=provider,
+        )
+
+    if backend == "postgres":
+        # Imported here so the optional driver is not needed to run chroma.
+        from amp_server.storage.postgres import PostgresAdapter
+
+        dsn = os.environ.get("AMP_POSTGRES_DSN")
+        if not dsn:
+            raise ValueError(
+                "AMP_POSTGRES_DSN is required when AMP_STORAGE_BACKEND=postgres"
+            )
+        return PostgresAdapter(dsn=dsn, embedding_provider=provider)
+
+    raise ValueError(
+        f"unknown AMP_STORAGE_BACKEND {backend!r}; expected one of chroma, postgres"
+    )
+
+
+def get_storage() -> StorageAdapter:
     assert _storage is not None, "Storage not initialized — lifespan not started"
     return _storage
 
@@ -87,13 +124,9 @@ def get_lifecycle() -> LifecycleEngine:
 async def lifespan(app: FastAPI):
     global _storage, _lifecycle, _lifecycle_settings
     configure_logging()
-    persist_dir = os.environ.get("AMP_PERSIST_DIR")
-    # Built here, not at import: a misconfigured provider must stop the server
+    # Built here, not at import: a misconfigured backend must stop the server
     # from starting rather than surface as poor search results later.
-    _storage = ChromaAdapter(
-        persist_directory=persist_dir,
-        embedding_provider=provider_from_env(),
-    )
+    _storage = _build_storage()
     _lifecycle = LifecycleEngine(_storage)
 
     # Read settings here, not only at import: a test (or an embedder) can set
@@ -122,6 +155,8 @@ async def lifespan(app: FastAPI):
                 await task
             except asyncio.CancelledError:
                 pass
+        if _storage is not None:
+            _storage.close()
         logger.info("AMP Server shutting down")
 
 
@@ -201,7 +236,7 @@ async def spec() -> dict[str, Any]:
         "amp_version": AMP_VERSION,
         "capabilities": {
             "mcp_compatible": False,
-            "storage_backends": ["chroma"],
+            "storage_backends": [get_storage().name],
             "embedding": get_storage().embedding,
             "max_cell_size_bytes": MAX_CELL_SIZE_BYTES,
             "lifecycle_scheduler": {

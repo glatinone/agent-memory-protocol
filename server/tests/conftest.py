@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import UTC, datetime
 
@@ -29,6 +30,48 @@ def storage():
     """Fresh in-memory ChromaAdapter with a unique collection per test."""
     unique_name = f"test_{uuid.uuid4().hex[:12]}"
     return ChromaAdapter(collection_name=unique_name)
+
+
+# --- Postgres ---------------------------------------------------------------
+#
+# These tests need a live server with the pgvector extension. Locally they skip
+# when AMP_TEST_POSTGRES_DSN is unset; CI sets it from a service container and
+# also sets AMP_REQUIRE_POSTGRES, which turns the skip into a failure. That flag
+# exists because a suite that skips itself still reports green, and the whole
+# point of the job is to prove the adapter works against a real database.
+
+POSTGRES_DSN = os.environ.get("AMP_TEST_POSTGRES_DSN")
+POSTGRES_REQUIRED = os.environ.get("AMP_REQUIRE_POSTGRES") not in (
+    None,
+    "",
+    "0",
+    "false",
+)
+
+
+def postgres_or_skip() -> str:
+    """The DSN, or skip - unless this run is one where skipping is not allowed."""
+    if POSTGRES_DSN:
+        return POSTGRES_DSN
+    if POSTGRES_REQUIRED:
+        pytest.fail(
+            "AMP_REQUIRE_POSTGRES is set but AMP_TEST_POSTGRES_DSN is not: "
+            "the postgres adapter would not have been exercised"
+        )
+    pytest.skip("set AMP_TEST_POSTGRES_DSN to run the postgres adapter tests")
+
+
+@pytest.fixture
+def postgres_storage():
+    """A PostgresAdapter on its own table, dropped afterwards."""
+    from amp_server.storage.postgres import PostgresAdapter
+
+    table = f"amp_test_{uuid.uuid4().hex[:12]}"
+    adapter = PostgresAdapter(dsn=postgres_or_skip(), table=table)
+    yield adapter
+    with adapter._connection.cursor() as cursor:
+        cursor.execute(f"DROP TABLE IF EXISTS {table}")
+    adapter.close()
 
 
 def make_cell(

@@ -1,6 +1,5 @@
-version: "3.8"
-
 services:
+  # The default deployment: embedded Chroma, one process, no external database.
   amp-server:
     build: .
     container_name: amp-server
@@ -12,4 +11,43 @@ services:
       - AMP_ENV=production
       - AMP_PORT=8765
       - AMP_PERSIST_DIR=/app/data/chroma
+    restart: unless-stopped
+
+  # A Postgres-backed deployment, for when AMP should sit next to the rest of
+  # your data. Start it with:
+  #
+  #   docker compose --profile postgres up -d
+  #
+  # The image ships the pgvector extension, which the adapter needs.
+  amp-server-postgres:
+    profiles: ["postgres"]
+    build: .
+    container_name: amp-server-postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8765:8765"
+    environment:
+      - AMP_ENV=production
+      - AMP_PORT=8765
+      - AMP_STORAGE_BACKEND=postgres
+      - AMP_POSTGRES_DSN=postgresql://amp:amp@postgres:5432/amp
+    restart: unless-stopped
+
+  postgres:
+    profiles: ["postgres"]
+    image: pgvector/pgvector:pg16
+    container_name: amp-postgres
+    environment:
+      - POSTGRES_USER=amp
+      - POSTGRES_PASSWORD=amp
+      - POSTGRES_DB=amp
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U amp -d amp"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     restart: unless-stopped

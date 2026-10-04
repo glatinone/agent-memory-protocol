@@ -84,6 +84,32 @@ class StorageAdapter(ABC):
     async def list_by_owner(self, owner_id: str) -> list[MemoryCell]:
         """Return all MemoryCells owned by the given owner_id."""
 
+    @abstractmethod
+    async def _get_raw(self, memory_id: str) -> MemoryCell:
+        """Return a cell without applying the access boost.
+
+        Internal, but part of the contract: the API layer uses it to decide
+        whether a cell exists without touching `access_count` or
+        `last_accessed_at`, which is what makes the "403 whether it exists or
+        not" rule in spec §8.4 work. `spec/v0.1.0/lifecycle.md` §5 names it
+        `_get_raw`, so the name is kept.
+
+        Raises MemoryNotFoundError if the cell is missing.
+        """
+
+    @property
+    def name(self) -> str:
+        """Short identifier reported at GET /spec under `storage_backends`.
+
+        Derived from the class name so added adapters are reported by default
+        rather than silently missing from the capability they are part of.
+        """
+        return type(self).__name__.removesuffix("Adapter").lower()
+
+    def close(self) -> None:
+        """Release any held resources. The lifespan calls this on shutdown."""
+        return None
+
     @property
     def embedding(self) -> dict[str, Any] | None:
         """What embeds text for this backend, reported by `GET /spec`.
