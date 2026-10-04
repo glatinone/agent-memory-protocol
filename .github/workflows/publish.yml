@@ -1,0 +1,45 @@
+name: Publish
+
+# Publishing to PyPI uses trusted publishing (OIDC), not a token: nothing is
+# stored in this repository or in its secrets. PyPI carries a pending publisher
+# naming this repository and this exact workflow filename, so the only thing on
+# the internet that can upload `amp-client` is a run of this file.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write # the OIDC token PyPI exchanges for a short-lived upload token
+
+jobs:
+  pypi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # A tree whose tests fail does not get published. The live-server half of
+      # the suite is excluded because this job has no AMP server to talk to and
+      # a skip there would report green.
+      - name: Test the SDK
+        working-directory: sdk
+        run: |
+          pip install -e ".[dev]"
+          pytest -q python/tests --ignore=python/tests/test_live_client.py
+
+      # Built here rather than uploaded from a developer machine, so the file on
+      # PyPI is the file in the repository at this commit.
+      - name: Build the SDK
+        run: |
+          python -m pip install --upgrade build
+          python -m build --outdir dist sdk
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
