@@ -135,9 +135,7 @@ async def lifespan(app: FastAPI):
 
     task: asyncio.Task[None] | None = None
     if _lifecycle_settings.enabled:
-        task = asyncio.create_task(
-            lifecycle_loop(_lifecycle, _lifecycle_settings.interval_seconds)
-        )
+        task = asyncio.create_task(lifecycle_loop(_lifecycle, _lifecycle_settings))
         logger.info(
             "Lifecycle scheduler started (every %ds)",
             _lifecycle_settings.interval_seconds,
@@ -239,6 +237,7 @@ async def spec() -> dict[str, Any]:
             "storage_backends": [get_storage().name],
             "embedding": get_storage().embedding,
             "max_cell_size_bytes": MAX_CELL_SIZE_BYTES,
+            "retention_days": get_storage().retention_days,
             "lifecycle_scheduler": {
                 "enabled": _lifecycle_settings.enabled,
                 "interval_seconds": _lifecycle_settings.interval_seconds,
@@ -257,10 +256,12 @@ async def spec() -> dict[str, Any]:
 async def run_lifecycle_now(
     x_amp_admin_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    """Trigger one decay pass immediately — for cron, ops, or tests.
+    """Trigger one lifecycle pass immediately — for cron, ops, or tests.
 
-    Gated on `AMP_ADMIN_TOKEN` because it mutates lifecycle state for every
-    cell in storage. Unset token == disabled (403), not an open endpoint.
+    Runs decay, plus the retention purge when `AMP_PURGE_RETENTION` is on. Gated
+    on `AMP_ADMIN_TOKEN` because it mutates lifecycle state for every cell in
+    storage, and erases data outright when purging is enabled. Unset token ==
+    disabled (403), not an open endpoint.
     """
     configured = _lifecycle_settings.admin_token
     if not configured:
@@ -268,8 +269,8 @@ async def run_lifecycle_now(
     if x_amp_admin_token != configured:
         raise access_denied()
 
-    transitions = await run_lifecycle(get_lifecycle())
-    return {"transitions": transitions}
+    run = await run_lifecycle(get_lifecycle(), _lifecycle_settings)
+    return {"transitions": run.transitions, "purged": run.purged}
 
 
 # ---------------------------------------------------------------------------

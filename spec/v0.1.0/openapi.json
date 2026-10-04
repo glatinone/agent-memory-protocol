@@ -538,7 +538,7 @@
     },
     "/amp/v1/lifecycle/run": {
       "post": {
-        "description": "Trigger one decay pass immediately — for cron, ops, or tests.\n\nGated on `AMP_ADMIN_TOKEN` because it mutates lifecycle state for every\ncell in storage. Unset token == disabled (403), not an open endpoint.",
+        "description": "Trigger one lifecycle pass immediately — for cron, ops, or tests.\n\nRuns decay, plus the retention purge when `AMP_PURGE_RETENTION` is on. Gated\non `AMP_ADMIN_TOKEN` because it mutates lifecycle state for every cell in\nstorage, and erases data outright when purging is enabled. Unset token ==\ndisabled (403), not an open endpoint.",
         "operationId": "run_lifecycle_now_amp_v1_lifecycle_run_post",
         "parameters": [
           {

@@ -40,6 +40,7 @@ from amp_server.models import (
     SearchRequest,
 )
 from amp_server.ranking import combined_score
+from amp_server.retention import RETENTION_DAYS, enforce_retention_window
 from amp_server.storage.base import (
     InvalidTransitionError,
     MemoryNotFoundError,
@@ -82,7 +83,11 @@ class PostgresAdapter(StorageAdapter):
         dsn: str,
         embedding_provider: EmbeddingProvider | None = None,
         table: str = TABLE,
+        retention_days: int = RETENTION_DAYS,
     ) -> None:
+        # See the Chroma adapter: a parameter, not an env var, because the spec
+        # fixes the floor at 30 days.
+        self._retention_days = retention_days
         psycopg = _require_driver()
         self._psycopg = psycopg
         self._table = table
@@ -148,6 +153,10 @@ class PostgresAdapter(StorageAdapter):
     def embedding(self) -> dict[str, Any]:
         """What embeds text here, for `GET /spec`."""
         return describe(self._embedding_provider)
+
+    @property
+    def retention_days(self) -> int:
+        return self._retention_days
 
     async def save(self, cell: MemoryCell) -> str:
         # Checked before anything is written, so a refused cell leaves no trace.
@@ -226,13 +235,14 @@ class PostgresAdapter(StorageAdapter):
         await self._write_cell(cell)
 
     async def purge(self, memory_id: str) -> None:
-        """Physically remove cell. Only valid when status is 'deleted'."""
+        """Physically remove a deleted cell, once its retention window has run."""
         cell = await self._get_raw(memory_id)
         if cell.lifecycle.status != LifecycleStatus.DELETED:
             raise InvalidTransitionError(
                 f"Cannot purge cell with status '{cell.lifecycle.status}'. "
                 "Only deleted cells can be purged."
             )
+        enforce_retention_window(cell, self._retention_days)
         with self._connection.cursor() as cursor:
             cursor.execute(f"DELETE FROM {self._table} WHERE id = %s", (memory_id,))
 

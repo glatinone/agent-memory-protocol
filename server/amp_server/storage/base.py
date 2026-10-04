@@ -12,6 +12,7 @@ from amp_server.models import (
     MemoryType,
     SearchRequest,
 )
+from amp_server.retention import RETENTION_DAYS
 
 
 class MemoryNotFoundError(Exception):
@@ -62,8 +63,13 @@ class StorageAdapter(ABC):
     @abstractmethod
     async def purge(self, memory_id: str) -> None:
         """Physically remove a MemoryCell from storage.
-        Only valid when status is 'deleted' — raises InvalidTransitionError otherwise.
-        Call only after the 30-day GDPR retention window has elapsed."""
+
+        Only valid when status is 'deleted' — raises InvalidTransitionError
+        otherwise. Refused inside the GDPR retention window with
+        `RetentionWindowError`: the window is enforced here, not left to the
+        caller, because the spec makes retention the server's responsibility and
+        a caller who purges too early destroys the audit evidence the window
+        exists to protect."""
 
     @abstractmethod
     async def search(self, request: SearchRequest, agent_id: str) -> list[MemoryCell]:
@@ -109,6 +115,16 @@ class StorageAdapter(ABC):
     def close(self) -> None:
         """Release any held resources. The lifespan calls this on shutdown."""
         return None
+
+    @property
+    def retention_days(self) -> int:
+        """How long a deleted cell is held before it may be purged.
+
+        Reported by `GET /spec` and read by the retention pass, so both agree on
+        one number. The default is the spec's floor; an adapter may hold cells
+        longer, and the check inside `purge` is what actually decides.
+        """
+        return RETENTION_DAYS
 
     @property
     def embedding(self) -> dict[str, Any] | None:

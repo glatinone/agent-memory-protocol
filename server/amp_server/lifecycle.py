@@ -7,6 +7,7 @@ import math
 from datetime import UTC, datetime
 
 from amp_server.models import LifecycleStatus, MemoryCell, MemoryCellUpdate
+from amp_server.retention import RetentionWindowError, retention_elapsed
 from amp_server.storage.base import InvalidTransitionError, StorageAdapter
 
 logger = logging.getLogger(__name__)
@@ -96,6 +97,34 @@ class LifecycleEngine:
             return LifecycleStatus.STALE
 
         return cell.lifecycle.status
+
+    async def purge_expired(self) -> int:
+        """Physically remove deleted cells whose retention window has elapsed.
+
+        Returns how many were removed. Not part of `process_all` because the two
+        answer different questions: decay decides what a live cell has become,
+        this erases data. Only the scheduler's opt-in retention pass and the
+        admin route call it.
+
+        The adapter stays the authority on the window: the check here is a cheap
+        pre-filter using the adapter's own `retention_days`, and a `purge` that
+        still refuses (an adapter holding cells longer than it reports) is
+        skipped rather than allowed to fail the whole pass.
+        """
+        removed = 0
+        for cell in await self._storage.list_all():
+            if cell.lifecycle.status is not LifecycleStatus.DELETED:
+                continue
+            if not retention_elapsed(cell, self._storage.retention_days):
+                continue
+            try:
+                await self._storage.purge(cell.id)
+            except RetentionWindowError as exc:
+                logger.debug("Skipped purge of %s: %s", cell.id, exc)
+                continue
+            removed += 1
+            logger.info("Cell %s purged: retention window elapsed", cell.id)
+        return removed
 
     async def process_all(self) -> dict[str, int]:
         """Run decay evaluation on all cells. Returns counts of transitions."""

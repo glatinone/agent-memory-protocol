@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from amp_server.lifecycle import LifecycleEngine
 
@@ -28,6 +28,19 @@ class LifecycleSettings:
     enabled: bool
     interval_seconds: int
     admin_token: str | None
+    purge_retention: bool
+
+
+@dataclass(frozen=True)
+class LifecycleRun:
+    """What one pass did.
+
+    `purged` is 0 unless the retention pass is enabled, so the same shape serves
+    both configurations and a caller never has to check for a missing key.
+    """
+
+    transitions: dict[str, int] = field(default_factory=dict)
+    purged: int = 0
 
 
 def _env_flag(name: str, default: bool) -> bool:
@@ -43,6 +56,11 @@ def settings_from_env() -> LifecycleSettings:
     `AMP_LIFECYCLE_ENABLED` defaults on so a fresh `docker compose up -d` decays
     cells without extra configuration. `AMP_ADMIN_TOKEN` gates the manual-run
     route; leaving it unset disables that route rather than leaving it open.
+
+    `AMP_PURGE_RETENTION` defaults *off*, alone among these. Spec §6.3 sets a
+    minimum retention rather than a deadline, so holding a deleted cell for longer
+    is compliant - and a server that starts erasing data by default after an
+    upgrade is a worse default than one that keeps it until an operator opts in.
     """
     raw_interval = os.environ.get("AMP_LIFECYCLE_INTERVAL_SECONDS", "")
     try:
@@ -65,11 +83,14 @@ def settings_from_env() -> LifecycleSettings:
         enabled=_env_flag("AMP_LIFECYCLE_ENABLED", True),
         interval_seconds=interval,
         admin_token=os.environ.get("AMP_ADMIN_TOKEN") or None,
+        purge_retention=_env_flag("AMP_PURGE_RETENTION", False),
     )
 
 
-async def run_lifecycle(engine: LifecycleEngine) -> dict[str, int]:
-    """Run one decay evaluation pass, logging and swallowing failures.
+async def run_lifecycle(
+    engine: LifecycleEngine, settings: LifecycleSettings
+) -> LifecycleRun:
+    """Run one pass: decay, then retention purging when it is enabled.
 
     A single failed pass must not kill the background task: an unhandled
     exception there would end all decay for the process lifetime with no signal
@@ -78,20 +99,25 @@ async def run_lifecycle(engine: LifecycleEngine) -> dict[str, int]:
     """
     try:
         transitions = await engine.process_all()
+        purged = await engine.purge_expired() if settings.purge_retention else 0
     except Exception:  # noqa: BLE001 — see docstring: keep the loop alive
         logger.exception("Lifecycle run failed; continuing")
-        return {}
-    logger.info("Lifecycle run complete: %s", transitions)
-    return transitions
+        return LifecycleRun()
+    logger.info("Lifecycle run complete: %s, purged=%d", transitions, purged)
+    return LifecycleRun(transitions=transitions, purged=purged)
 
 
-async def lifecycle_loop(engine: LifecycleEngine, interval_seconds: int) -> None:
+async def lifecycle_loop(engine: LifecycleEngine, settings: LifecycleSettings) -> None:
     """Sleep-then-run forever. Cancelled by the lifespan on shutdown.
 
     Sleeping first avoids paying a run's latency at startup and racing the first
     requests; a fresh database has nothing to decay, and the admin route covers
     the "run it now" case.
+
+    Takes the whole settings object rather than the interval, so the retention
+    flag reaches the pass by the same route the interval does instead of being
+    read from the environment a second time.
     """
     while True:
-        await asyncio.sleep(interval_seconds)
-        await run_lifecycle(engine)
+        await asyncio.sleep(settings.interval_seconds)
+        await run_lifecycle(engine, settings)

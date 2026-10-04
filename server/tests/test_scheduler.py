@@ -12,6 +12,7 @@ from httpx import ASGITransport, AsyncClient
 
 from amp_server.lifecycle import LifecycleEngine
 from amp_server.models import LifecycleStatus, MemoryCellUpdate, MemoryScoring
+from amp_server.retention import RETENTION_DAYS
 from amp_server.scheduler import (
     DEFAULT_INTERVAL_SECONDS,
     LifecycleSettings,
@@ -19,11 +20,26 @@ from amp_server.scheduler import (
     run_lifecycle,
     settings_from_env,
 )
+from amp_server.storage.base import MemoryNotFoundError
 from amp_server.storage.chroma import ChromaAdapter
 
 
-def _fresh_storage() -> ChromaAdapter:
-    return ChromaAdapter(collection_name=f"test_{uuid.uuid4().hex[:12]}")
+def _fresh_storage(retention_days: int = RETENTION_DAYS) -> ChromaAdapter:
+    return ChromaAdapter(
+        collection_name=f"test_{uuid.uuid4().hex[:12]}", retention_days=retention_days
+    )
+
+
+def _settings(**overrides: object) -> LifecycleSettings:
+    """Build settings for a test, so a new field is added in one place."""
+    values: dict[str, object] = {
+        "enabled": True,
+        "interval_seconds": DEFAULT_INTERVAL_SECONDS,
+        "admin_token": None,
+        "purge_retention": False,
+    }
+    values.update(overrides)
+    return LifecycleSettings(**values)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
@@ -104,6 +120,7 @@ def test_settings_default_to_enabled_with_daily_ish_interval(monkeypatch):
         "AMP_LIFECYCLE_ENABLED",
         "AMP_LIFECYCLE_INTERVAL_SECONDS",
         "AMP_ADMIN_TOKEN",
+        "AMP_PURGE_RETENTION",
     ):
         monkeypatch.delenv(var, raising=False)
 
@@ -111,6 +128,18 @@ def test_settings_default_to_enabled_with_daily_ish_interval(monkeypatch):
     assert settings.enabled is True
     assert settings.interval_seconds == DEFAULT_INTERVAL_SECONDS
     assert settings.admin_token is None
+
+
+def test_retention_purging_is_off_until_an_operator_turns_it_on(monkeypatch):
+    """Spec §6.3 sets a minimum retention, so holding cells longer is compliant.
+
+    Erasing data by default after an upgrade is the failure this default avoids.
+    """
+    monkeypatch.delenv("AMP_PURGE_RETENTION", raising=False)
+    assert settings_from_env().purge_retention is False
+
+    monkeypatch.setenv("AMP_PURGE_RETENTION", "1")
+    assert settings_from_env().purge_retention is True
 
 
 def test_settings_flag_disables_scheduler(monkeypatch):
@@ -143,7 +172,10 @@ async def test_run_lifecycle_survives_engine_failure():
         async def process_all(self) -> dict[str, int]:
             raise RuntimeError("storage exploded")
 
-    assert await run_lifecycle(Boom()) == {}  # type: ignore[arg-type]
+    run = await run_lifecycle(Boom(), _settings())  # type: ignore[arg-type]
+
+    assert run.transitions == {}
+    assert run.purged == 0
 
 
 @pytest.mark.asyncio
@@ -162,7 +194,9 @@ async def test_lifecycle_loop_runs_then_cancels_cleanly():
             reached.set()
             return {}
 
-    task = asyncio.create_task(lifecycle_loop(Counting(), 0.01))  # type: ignore[arg-type]
+    task = asyncio.create_task(
+        lifecycle_loop(Counting(), _settings(interval_seconds=0))  # type: ignore[arg-type]
+    )
     try:
         await asyncio.wait_for(reached.wait(), timeout=2)
     finally:
@@ -192,7 +226,9 @@ async def test_loop_keeps_running_after_a_failed_run():
             return {}
 
     flaky = Flaky()
-    task = asyncio.create_task(lifecycle_loop(flaky, 0.01))  # type: ignore[arg-type]
+    task = asyncio.create_task(
+        lifecycle_loop(flaky, _settings(interval_seconds=0))  # type: ignore[arg-type]
+    )
     try:
         await asyncio.wait_for(flaky.second.wait(), timeout=2)
     finally:
@@ -204,20 +240,88 @@ async def test_loop_keeps_running_after_a_failed_run():
 
 
 # ---------------------------------------------------------------------------
+# The retention pass (spec lifecycle.md §5)
+# ---------------------------------------------------------------------------
+
+
+async def _deleted_cell(storage: ChromaAdapter, text: str = "to be erased") -> str:
+    """Store an archived cell and delete it, so it is inside the window."""
+    cell = make_cell(status=LifecycleStatus.ARCHIVED, text=text)
+    await storage.save(cell)
+    await storage.mark_deleted(cell.id)
+    return cell.id
+
+
+@pytest.mark.asyncio
+async def test_the_retention_pass_erases_cells_past_the_window():
+    storage = _fresh_storage(retention_days=0)
+    engine = LifecycleEngine(storage)
+    deleted_id = await _deleted_cell(storage)
+
+    purged = await engine.purge_expired()
+
+    assert purged == 1
+    with pytest.raises(MemoryNotFoundError):
+        await storage._get_raw(deleted_id)
+
+
+@pytest.mark.asyncio
+async def test_the_retention_pass_keeps_cells_inside_the_window():
+    """The default window is 30 days, so a fresh deletion must survive."""
+    storage = _fresh_storage()
+    engine = LifecycleEngine(storage)
+    deleted_id = await _deleted_cell(storage)
+
+    assert await engine.purge_expired() == 0
+    assert (
+        await storage._get_raw(deleted_id)
+    ).lifecycle.status is LifecycleStatus.DELETED
+
+
+@pytest.mark.asyncio
+async def test_the_retention_pass_leaves_live_cells_alone():
+    storage = _fresh_storage(retention_days=0)
+    engine = LifecycleEngine(storage)
+    cell = make_cell(status=LifecycleStatus.ACTIVE, text="still in use")
+    await storage.save(cell)
+
+    assert await engine.purge_expired() == 0
+    assert (await storage._get_raw(cell.id)).lifecycle.status is LifecycleStatus.ACTIVE
+
+
+@pytest.mark.asyncio
+async def test_run_lifecycle_purges_only_when_asked():
+    storage = _fresh_storage(retention_days=0)
+    engine = LifecycleEngine(storage)
+    await _deleted_cell(storage)
+
+    kept = await run_lifecycle(engine, _settings())
+    assert kept.purged == 0
+
+    erased = await run_lifecycle(engine, _settings(purge_retention=True))
+    assert erased.purged == 1
+
+
+# ---------------------------------------------------------------------------
 # POST /amp/v1/lifecycle/run
 # ---------------------------------------------------------------------------
 
 _TOKEN = "test-admin-token"
 
 
-def _install_app_state(token: str | None) -> None:
+def _install_app_state(
+    token: str | None,
+    *,
+    retention_days: int = RETENTION_DAYS,
+    purge_retention: bool = False,
+) -> None:
     """Point the app at a fresh storage + engine, as the lifespan would."""
     import amp_server.main as main_mod
 
-    main_mod._storage = _fresh_storage()
+    main_mod._storage = _fresh_storage(retention_days=retention_days)
     main_mod._lifecycle = LifecycleEngine(main_mod._storage)
-    main_mod._lifecycle_settings = LifecycleSettings(
-        enabled=True, interval_seconds=DEFAULT_INTERVAL_SECONDS, admin_token=token
+    main_mod._lifecycle_settings = _settings(
+        admin_token=token, purge_retention=purge_retention
     )
 
 
@@ -271,6 +375,39 @@ async def test_lifecycle_run_with_valid_token_reports_transitions():
     resp = await _post_run({"X-AMP-Admin-Token": _TOKEN})
     assert resp.status_code == 200
     assert resp.json()["transitions"]["active_to_stale"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_run_reports_purged_cells_and_keeps_the_transition_shape():
+    _install_app_state(token=_TOKEN, retention_days=0, purge_retention=True)
+
+    import amp_server.main as main_mod
+
+    await _deleted_cell(main_mod._storage)
+
+    resp = await _post_run({"X-AMP-Admin-Token": _TOKEN})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["purged"] == 1
+    # Additive: the key existing consumers read is unchanged.
+    assert "transitions" in body
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_run_does_not_purge_without_the_flag():
+    _install_app_state(token=_TOKEN, retention_days=0)
+
+    import amp_server.main as main_mod
+
+    deleted_id = await _deleted_cell(main_mod._storage)
+
+    resp = await _post_run({"X-AMP-Admin-Token": _TOKEN})
+
+    assert resp.json()["purged"] == 0
+    assert (await main_mod._storage._get_raw(deleted_id)).lifecycle.status is (
+        LifecycleStatus.DELETED
+    )
 
 
 @pytest.mark.asyncio

@@ -88,6 +88,7 @@ curl http://localhost:8765/amp/v1/spec
     "storage_backends": ["chroma"],
     "embedding": {"provider": "chroma-default", "dimensions": 384},
     "max_cell_size_bytes": 65536,
+    "retention_days": 30,
     "lifecycle_scheduler": {
       "enabled": true,
       "interval_seconds": 3600,
@@ -110,6 +111,7 @@ suite checks it against the server's own numbers rather than a fixed value:
 | `storage_backends` | The adapter actually wired in (`chroma` or `postgres`), selected with `AMP_STORAGE_BACKEND`; see [getting started](getting-started.md#6-choosing-a-storage-backend). |
 | `embedding` | Which provider turns text into vectors, and the width of the vectors it produces (`null` when the service decides per request). Configured with `AMP_EMBEDDING_PROVIDER`; see [getting started](getting-started.md#5-choosing-an-embedding-provider). |
 | `max_cell_size_bytes` | The largest serialized cell the server will accept. Enforced on create and on update; a larger cell is refused with `413 CELL_TOO_LARGE` before anything is written, and the number here is the number the check uses. |
+| `retention_days` | How long a deleted cell is held before it may be purged (`30`, the spec's floor). Enforced by the storage layer: a `purge` inside the window is refused with `RetentionWindowError`, so the advertised number and the check cannot drift apart. This is a server-internal operation - neither purge nor this endpoint is a REST route. |
 | `lifecycle_scheduler` | Whether decay runs on a timer, how often, and the admin route that triggers a pass on demand. That route is gated on `AMP_ADMIN_TOKEN`; with no token configured it answers `403 ADMIN_DISABLED` rather than being absent. |
 
 ---
@@ -400,6 +402,8 @@ Fields that cannot be patched: `id`, `amp_version`, `identity`, `lifecycle.creat
 ## DELETE /memories/{memory_id}
 
 Soft-deletes a memory cell by setting `lifecycle.status` to `"deleted"`. The cell is retained in storage and will not appear in search results, but can still be retrieved directly by ID.
+
+The record is not removable for at least 30 days (`retention_days` in [`GET /spec`](#get-spec)): physical removal is an internal operation, is refused inside that window, and is not exposed as a REST route in v0.1.0. See [Deletion semantics](https://github.com/glatinone/agent-memory-protocol/blob/master/spec/v0.1.0/lifecycle.md).
 
 **Request**
 

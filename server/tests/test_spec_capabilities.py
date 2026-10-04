@@ -199,6 +199,34 @@ async def test_the_advertised_storage_backend_is_the_one_in_use():
 
 
 @pytest.mark.asyncio
+async def test_the_advertised_retention_matches_what_purge_enforces():
+    """Spec lifecycle.md §5: a purge inside the window must be refused.
+
+    The advertised number is the one the enforcement uses - not a constant that
+    happens to be printed next to a separately hard-coded check.
+    """
+    import amp_server.main as main_mod
+    from amp_server.models import LifecycleStatus
+    from amp_server.retention import RETENTION_DAYS, RetentionWindowError
+
+    async with await _client() as client:
+        advertised = (await client.get("/amp/v1/spec")).json()["capabilities"][
+            "retention_days"
+        ]
+
+    assert advertised == main_mod.get_storage().retention_days == RETENTION_DAYS
+
+    # And the rule behind the number: a cell deleted now cannot be purged.
+    storage = main_mod.get_storage()
+    cell = make_cell(status=LifecycleStatus.ARCHIVED, text="advertised retention")
+    await storage.save(cell)
+    await storage.mark_deleted(cell.id)
+
+    with pytest.raises(RetentionWindowError):
+        await storage.purge(cell.id)
+
+
+@pytest.mark.asyncio
 async def test_the_advertised_version_matches_the_health_endpoint():
     async with await _client() as client:
         spec = (await client.get("/amp/v1/spec")).json()

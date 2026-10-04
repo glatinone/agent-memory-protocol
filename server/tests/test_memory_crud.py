@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -16,7 +17,9 @@ from amp_server.models import (
     MemoryType,
     SearchRequest,
 )
+from amp_server.retention import RetentionWindowError
 from amp_server.storage.base import InvalidTransitionError, MemoryNotFoundError
+from amp_server.storage.chroma import ChromaAdapter
 
 # ---------------------------------------------------------------------------
 # Save & Get
@@ -98,18 +101,48 @@ async def test_update_nonexistent_raises(storage):
 
 
 @pytest.mark.asyncio
-async def test_mark_deleted_and_purge(storage):
-    """Archiving a cell, marking it deleted, then purging removes it from storage."""
+async def test_mark_deleted_keeps_the_record(storage):
+    """Deleting is a status change; the data stays for the retention window."""
     cell = make_cell(status=LifecycleStatus.ARCHIVED)
     await storage.save(cell)
 
     await storage.mark_deleted(cell.id)
-    # Record still exists but status is deleted
+
     raw = await storage._get_raw(cell.id)
     assert raw.lifecycle.status == LifecycleStatus.DELETED
 
+
+@pytest.mark.asyncio
+async def test_purge_right_after_mark_deleted_is_refused(storage):
+    """Spec lifecycle.md §5: the 30-day window is enforced, not requested.
+
+    This replaces a case that purged one line after deleting, which is the
+    retention-window bypass the RFC lists as a threat: it destroyed the audit
+    evidence the window exists to keep.
+    """
+    cell = make_cell(status=LifecycleStatus.ARCHIVED)
+    await storage.save(cell)
+    await storage.mark_deleted(cell.id)
+
+    with pytest.raises(RetentionWindowError):
+        await storage.purge(cell.id)
+
+    # Refused, so the record is still there.
+    assert (await storage._get_raw(cell.id)).lifecycle.status is LifecycleStatus.DELETED
+
+
+@pytest.mark.asyncio
+async def test_purge_after_the_window_removes_the_record():
+    """The destructive half, reached with a window that is already over."""
+    storage = ChromaAdapter(
+        collection_name=f"test_{uuid.uuid4().hex[:12]}", retention_days=0
+    )
+    cell = make_cell(status=LifecycleStatus.ARCHIVED)
+    await storage.save(cell)
+    await storage.mark_deleted(cell.id)
+
     await storage.purge(cell.id)
-    # Record is now physically removed
+
     with pytest.raises(MemoryNotFoundError):
         await storage.get(cell.id)
 

@@ -25,6 +25,7 @@ from amp_server.models import (
     MemoryCellUpdate,
     SearchRequest,
 )
+from amp_server.retention import RETENTION_DAYS, RetentionWindowError
 from amp_server.storage.base import InvalidTransitionError, MemoryNotFoundError
 from amp_server.storage.chroma import ChromaAdapter
 
@@ -50,26 +51,62 @@ def _search(query: str, owner_id: str = _OWNER) -> SearchRequest:
     return SearchRequest(query=query, owner_id=owner_id, limit=10)
 
 
-@pytest.fixture(params=["chroma", "postgres"])
-def adapter(request):
-    """The same interface, built on each backend."""
+def _open_adapter(backend: str, **kwargs):
+    """Build a backend, and return it with whatever teardown it needs.
+
+    One factory for every fixture below: a fixture that builds its own adapter
+    would be a second place to update when a constructor argument changes.
+    """
     provider = KeywordEmbedding()
-    if request.param == "chroma":
-        yield ChromaAdapter(
-            collection_name=f"test_{uuid.uuid4().hex[:12]}", embedding_provider=provider
+    if backend == "chroma":
+        return (
+            ChromaAdapter(
+                collection_name=f"test_{uuid.uuid4().hex[:12]}",
+                embedding_provider=provider,
+                **kwargs,
+            ),
+            None,
         )
-        return
 
     from amp_server.storage.postgres import PostgresAdapter
 
     table = f"amp_test_{uuid.uuid4().hex[:12]}"
-    postgres = PostgresAdapter(
-        dsn=postgres_or_skip(), table=table, embedding_provider=provider
+    adapter = PostgresAdapter(
+        dsn=postgres_or_skip(),
+        table=table,
+        embedding_provider=provider,
+        **kwargs,
     )
-    yield postgres
-    with postgres._connection.cursor() as cursor:
+    return adapter, table
+
+
+def _close_adapter(adapter, table: str | None) -> None:
+    if table is None:
+        return
+    with adapter._connection.cursor() as cursor:
         cursor.execute(f"DROP TABLE IF EXISTS {table}")
-    postgres.close()
+    adapter.close()
+
+
+@pytest.fixture(params=["chroma", "postgres"])
+def adapter(request):
+    """The same interface, built on each backend."""
+    built, table = _open_adapter(request.param)
+    yield built
+    _close_adapter(built, table)
+
+
+@pytest.fixture(params=["chroma", "postgres"])
+def expired_adapter(request):
+    """A backend whose retention window is already over.
+
+    The window is a constructor argument rather than an environment variable,
+    because the spec fixes the floor at 30 days; this is how the path past the
+    window is reached without a test waiting a month.
+    """
+    built, table = _open_adapter(request.param, retention_days=0)
+    yield built
+    _close_adapter(built, table)
 
 
 # ---------------------------------------------------------------------------
@@ -189,17 +226,24 @@ async def test_an_archived_cell_cannot_return_to_active(adapter):
 
 
 @pytest.mark.asyncio
-async def test_purge_removes_a_deleted_cell_for_good(adapter):
+async def test_purge_removes_a_deleted_cell_for_good(expired_adapter):
+    """Erased for good — but only once the window is over.
+
+    This case used to purge a cell one instant after deleting it, which is what
+    the retention rule now refuses (see the window tests above). The destructive
+    half still has to be proven, so it runs against an adapter whose window is
+    already past.
+    """
     cell = make_cell(
         owner_id=_OWNER, created_by=_CREATOR, status=LifecycleStatus.ARCHIVED
     )
-    await adapter.save(cell)
-    await adapter.mark_deleted(cell.id)
+    await expired_adapter.save(cell)
+    await expired_adapter.mark_deleted(cell.id)
 
-    await adapter.purge(cell.id)
+    await expired_adapter.purge(cell.id)
 
     with pytest.raises(MemoryNotFoundError):
-        await adapter._get_raw(cell.id)
+        await expired_adapter._get_raw(cell.id)
 
 
 @pytest.mark.asyncio
@@ -225,6 +269,52 @@ async def test_the_size_limit_is_enforced_before_writing(adapter):
     assert raised.value.code == "CELL_TOO_LARGE"
     with pytest.raises(MemoryNotFoundError):
         await adapter._get_raw(cell.id)
+
+
+@pytest.mark.asyncio
+async def test_purge_is_refused_inside_the_retention_window(adapter):
+    """Spec lifecycle.md §5: purge is preconditioned on the window elapsing.
+
+    Both backends must refuse, and refuse it themselves: the rule living in a
+    docstring that asked the caller to wait is what this replaced.
+    """
+    cell = make_cell(
+        owner_id=_OWNER, created_by=_CREATOR, status=LifecycleStatus.ARCHIVED
+    )
+    await adapter.save(cell)
+    await adapter.mark_deleted(cell.id)
+
+    with pytest.raises(RetentionWindowError, match="retained until"):
+        await adapter.purge(cell.id)
+
+    # Refused means nothing was removed.
+    assert (await adapter._get_raw(cell.id)).lifecycle.status is LifecycleStatus.DELETED
+
+
+@pytest.mark.asyncio
+async def test_purge_succeeds_once_the_window_has_elapsed(expired_adapter):
+    cell = make_cell(
+        owner_id=_OWNER, created_by=_CREATOR, status=LifecycleStatus.ARCHIVED
+    )
+    await expired_adapter.save(cell)
+    await expired_adapter.mark_deleted(cell.id)
+
+    await expired_adapter.purge(cell.id)
+
+    with pytest.raises(MemoryNotFoundError):
+        await expired_adapter._get_raw(cell.id)
+
+
+@pytest.mark.asyncio
+async def test_a_live_cell_is_refused_before_the_window_is_even_considered(adapter):
+    """Status is checked first, so the error names the real problem."""
+    cell = make_cell(
+        owner_id=_OWNER, created_by=_CREATOR, status=LifecycleStatus.ACTIVE
+    )
+    await adapter.save(cell)
+
+    with pytest.raises(InvalidTransitionError, match="Only deleted cells"):
+        await adapter.purge(cell.id)
 
 
 # ---------------------------------------------------------------------------
@@ -461,12 +551,13 @@ def test_the_postgres_adapter_says_which_dependency_is_missing():
 
 
 @pytest.mark.asyncio
-async def test_both_backends_report_a_name_and_their_embedding(adapter):
+async def test_both_backends_report_a_name_their_embedding_and_their_policy(adapter):
     assert adapter.name in {"chroma", "postgres"}
     assert adapter.embedding == {
         "provider": "stub-keywords",
         "dimensions": KeywordEmbedding.dimensions,
     }
+    assert adapter.retention_days == RETENTION_DAYS == 30
 
 
 @pytest.mark.asyncio

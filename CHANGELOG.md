@@ -88,6 +88,25 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Postgres half. `_get_raw` is now declared on `StorageAdapter`, which it had to
   be once more than one backend existed.
 
+- **The 30-day retention window is now enforced instead of documented**
+  (`amp_server.retention`). `spec/v0.1.0/lifecycle.md` §5 and RFC §5 make
+  retention the server's responsibility - a deleted cell MUST be held for at
+  least 30 days and `purge` is preconditioned on that window - but the rule lived
+  in a docstring asking the *caller* to wait, so `purge()` would destroy a cell
+  one second after `DELETE`. That is the retention-window bypass the RFC lists as
+  a threat, and it destroys the audit evidence the window exists to keep. The rule
+  now lives in one module used by both backends, and the refusal names the date
+  the cell becomes purgeable. `GET /spec` advertises `retention_days`, tied to the
+  same number the check uses.
+- **A retention pass, opt-in** (`AMP_PURGE_RETENTION=1`, off by default).
+  `LifecycleEngine.purge_expired()` removes deleted cells whose window has
+  elapsed, and `POST /lifecycle/run` reports `purged` alongside `transitions`.
+  Off by default on purpose: spec §6.3 sets a *minimum* retention, so holding a
+  deleted cell longer is compliant, and a server that starts erasing data after an
+  upgrade is a worse default than one that keeps it until asked. `docs/spec-explained.md`
+  claimed a "background cleanup worker" that did not exist; it now describes what
+  runs.
+
 ### Changed
 - **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a
   conflict with `{"detail": ...}` while `DELETE` answered with

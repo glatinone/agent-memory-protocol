@@ -23,6 +23,7 @@ from amp_server.models import (
     SearchRequest,
 )
 from amp_server.ranking import combined_score
+from amp_server.retention import RETENTION_DAYS, enforce_retention_window
 from amp_server.storage.base import (
     InvalidTransitionError,
     MemoryNotFoundError,
@@ -59,7 +60,12 @@ class ChromaAdapter(StorageAdapter):
         persist_directory: str | None = None,
         collection_name: str = "amp_memories",
         embedding_provider: EmbeddingProvider | None = None,
+        retention_days: int = RETENTION_DAYS,
     ) -> None:
+        # A parameter rather than an env var: the spec fixes the window at 30
+        # days, so an operator knob could only ever take it below the floor.
+        # Tests use it to reach the post-window path without waiting 30 days.
+        self._retention_days = retention_days
         if persist_directory:
             self._client = chromadb.PersistentClient(path=persist_directory)
         else:
@@ -81,6 +87,10 @@ class ChromaAdapter(StorageAdapter):
     def embedding(self) -> dict[str, Any]:
         """What embeds text here, for `GET /spec`."""
         return describe(self._embedding_provider)
+
+    @property
+    def retention_days(self) -> int:
+        return self._retention_days
 
     def _embed(self, texts: list[str]) -> list[Any]:
         """Embed through the configured provider.
@@ -168,13 +178,14 @@ class ChromaAdapter(StorageAdapter):
         await self._update_internal(memory_id, updated_cell)
 
     async def purge(self, memory_id: str) -> None:
-        """Physically remove cell. Only valid when status is 'deleted'."""
+        """Physically remove a deleted cell, once its retention window has run."""
         cell = await self._get_raw(memory_id)
         if cell.lifecycle.status != LifecycleStatus.DELETED:
             raise InvalidTransitionError(
                 f"Cannot purge cell with status '{cell.lifecycle.status}'. "
                 "Only deleted cells can be purged."
             )
+        enforce_retention_window(cell, self._retention_days)
         self._collection.delete(ids=[memory_id])
 
     async def search(self, request: SearchRequest, agent_id: str) -> list[MemoryCell]:
