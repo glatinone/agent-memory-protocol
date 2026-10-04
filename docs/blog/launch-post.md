@@ -94,9 +94,9 @@ uvicorn amp_server.main:app --host 127.0.0.1 --port 8765
 ```
 
 #### Step 2: Install the SDK Client
-The Python client (`amp-client`) isn't on PyPI yet, so install it from the same clone:
+The Python client is on PyPI:
 ```bash
-pip install -e ../sdk
+pip install amp-client
 ```
 
 #### Step 3: Run the Python Demo

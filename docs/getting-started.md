@@ -102,10 +102,10 @@ Deletion is a soft-delete: `lifecycle.status` is set to `"deleted"` and the cell
 
 ## 3. Python quickstart
 
-The official Python SDK client package `amp-client` makes it easy to integrate AMP into your python-based agents. Not yet on PyPI - install from a clone of this repo:
+The official Python SDK client package `amp-client` makes it easy to integrate AMP into your python-based agents:
 
 ```bash
-pip install -e sdk/
+pip install amp-client
 ```
 
 Use the following quickstart pattern to manage memories with the client:

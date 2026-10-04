@@ -82,7 +82,7 @@ The through line is that every one of those was a claim that did not survive con
 
 ## What it is not yet
 
-- **Not on PyPI or npm.** You install from the repo today.
+- **Published, but new.** `pip install amp-client` and `npm install @glatinone/amp-client`, both 0.1.0. Before this week you installed from the repo.
 - **No hosted service.** You run it yourself, which I think is right for a protocol at this stage.
 - **Clients for Python and Node only.** Go and Rust are the ones people ask for.
 - **Storage is pluggable.** ChromaDB by default with no infrastructure, or PostgreSQL with `pgvector`. Both pass the same adapter contract tests.

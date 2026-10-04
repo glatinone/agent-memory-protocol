@@ -8,6 +8,14 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Both SDKs are published.** `amp-client` 0.1.0 is on PyPI and
+  `@glatinone/amp-client` 0.1.0 is on npm, built from the same commit. PyPI goes
+  through `.github/workflows/publish.yml` using trusted publishing (OIDC), so no
+  token is stored in the repository or its secrets. The npm side still needs a token
+  per release until an OIDC trusted publisher is configured for the package; that is
+  the one gap left. Every "not on PyPI" line in the docs was corrected in the same
+  pass, including the FAQ, the getting-started guide, the SDK README, the status
+  section of the docs home, and the v0.1.0 release notes.
 - **Lint, format and type gates.** Ruff and mypy are configured for both Python
   packages, a `quality` job runs them in CI, and `.pre-commit-config.yaml` runs
   the lint and format hooks before each local commit. Neither package had a

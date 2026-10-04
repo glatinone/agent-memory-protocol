@@ -51,8 +51,9 @@ process that created it.
 
 ## Status
 
-AMP is an early, honest reference implementation. The spec is `v0.1.0`, the SDK is not yet
-on PyPI (install from source), and the decay engine runs on a background schedule by
+AMP is an early, honest reference implementation. The spec is `v0.1.0`, the SDKs are
+published (`pip install amp-client`, `npm install @glatinone/amp-client`), and the decay
+engine runs on a background schedule by
 default - the interval configurable, or the scheduler disabled for deployments that prefer
 to drive it themselves. The SDK's distribution status and the scheduler's defaults are
 tracked openly rather than glossed over.

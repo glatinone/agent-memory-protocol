@@ -83,8 +83,9 @@ container, and the conformance suite against a live server.
 
 Stated plainly rather than left for you to discover:
 
-- **The SDKs are not published.** Install from this repo (`pip install -e sdk`, or
-  copy `sdk/node`); the PyPI and npm packages are not out yet.
+- **The SDKs were not published at the time of this release.** They are now:
+  `pip install amp-client` and `npm install @glatinone/amp-client`, both 0.1.0.
+  Before that, install from this repo (`pip install -e sdk`, or copy `sdk/node`).
 - **No hosted service.** Self-hosting via `docker compose up -d` is the only
   path today.
 - **Python and Node only.** No Go or Rust clients.

@@ -7,8 +7,9 @@ not just present, but verified against the real code and docs. Last verified
 
 ## 1. Documentation & Specification
 - [x] Top-level `README.md` complete and landing-page ready
-- [x] Badges configured: CI status, license, spec version (no PyPI badge;
-      not published yet, see item below)
+- [x] Badges configured: CI status, license, spec version. The parenthetical here
+      used to say "no PyPI badge; not published yet" - true until 2026-10-04, when
+      `amp-client` and `@glatinone/amp-client` were published.
 - [x] Mermaid architecture diagram present and matches the real components
 - [x] Protocol specification complete at `spec/v0.1.0/` (there is no root
       `SPEC.md`; every doc link now points at the real path)

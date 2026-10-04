@@ -10,7 +10,7 @@ For now, yes - there is no hosted AMP service yet (see [Is there a hosted versio
 
 ## Can I use AMP without the Python SDK?
 
-Yes. The Python SDK (`amp-client`) is a convenience wrapper, and it's not strictly required; everything it does is available directly via the REST API (`POST /amp/v1/memories`, `POST /amp/v1/memories/search`, etc.). Any HTTP client works: `curl`, `httpx`, `requests`, `fetch`, or any other language's HTTP library. The SDK itself isn't on PyPI yet; install it from a clone of the repo (`pip install -e sdk/`).
+Yes. The Python SDK (`amp-client`) is a convenience wrapper, and it's not strictly required; everything it does is available directly via the REST API (`POST /amp/v1/memories`, `POST /amp/v1/memories/search`, etc.). Any HTTP client works: `curl`, `httpx`, `requests`, `fetch`, or any other language's HTTP library. The SDK is on PyPI: `pip install amp-client`.
 
 ## What happens to a deleted memory - is it gone forever?
 

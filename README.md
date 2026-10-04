@@ -90,15 +90,14 @@ for cell in client.recall("how does the user want to be contacted?", owner_id="u
     print(cell["content"]["text"])
 ```
 
-Install the Python client from the release asset — there are real wheels, they are just
-not on PyPI yet:
+Install a client:
 
 ```bash
-pip install https://github.com/glatinone/agent-memory-protocol/releases/download/v0.1.0/amp_client-0.1.0-py3-none-any.whl
+pip install amp-client              # Python: sync, async, and LangChain
+npm install @glatinone/amp-client   # Node 18+, zero dependencies
 ```
 
-Or from a clone: `pip install -e sdk/`. The same release carries a Node tarball, and the
-client in [`sdk/node/`](sdk/node/) needs no dependencies at all (Node 18+ has `fetch`).
+Developing on the SDKs themselves? `pip install -e sdk/`, or work in `sdk/node/` directly.
 
 ---
 
@@ -173,10 +172,9 @@ simply absent from its results.
 
 Worth reading before you build on this:
 
-- **The SDKs are not on PyPI or npm yet.** Wheels and a Node tarball are attached to
-  [the v0.1.0 release](https://github.com/glatinone/agent-memory-protocol/releases/tag/v0.1.0),
-  so `pip install <wheel URL>` and `npm install <tarball URL>` both work today;
-  `pip install amp-client` does not.
+- **The SDKs are published**: `pip install amp-client` and
+  `npm install @glatinone/amp-client`, both at 0.1.0. The same artifacts are also attached
+  to [the v0.1.0 release](https://github.com/glatinone/agent-memory-protocol/releases/tag/v0.1.0).
 - **There is no hosted service.** You run the server. That is deliberate: your
   memory stays yours while the protocol gets tested.
 - **Authentication is opt-in, and keys only.** By default the server trusts the
