@@ -43,3 +43,27 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
+
+  # npm publishes the same way, through the trusted publisher configured on
+  # npmjs.com for this repository and this workflow file. No NPM_TOKEN exists.
+  npm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      # OIDC trusted publishing needs npm 11.5.1 or later; the npm bundled with
+      # Node 22 is older, so the CLI is upgraded on purpose.
+      - name: Upgrade npm for OIDC
+        run: npm install -g npm@^11
+
+      - name: Run the Node SDK tests
+        working-directory: sdk/node
+        run: node --test test/client.test.js
+
+      - name: Publish to npm
+        working-directory: sdk/node
+        run: npm publish --access public
