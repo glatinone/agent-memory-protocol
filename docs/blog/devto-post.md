@@ -1,46 +1,38 @@
 ---
-title: "AMP: an open protocol for AI agent memory, like MCP but for memory"
+title: "My agents kept forgetting each other, so I wrote a protocol about it"
 published: false
-description: "MCP standardized how agents call tools. Nothing standardized how they remember. AMP is an open, HTTP-native protocol for storing, recalling, and sharing agent memory across frameworks."
-tags: ai, python, opensource, webdev
-cover_image:
+description: "Notes from building AMP, an open HTTP protocol for agent memory: what it defines, the five things I got wrong, and the question I still cannot answer."
+tags: ai, python, opensource, programming
+cover_image: 
 ---
 
-Anthropic's Model Context Protocol gave agents a standard way to call tools. It left a different gap open: how do agents **remember**? Store, recall, and share context across frameworks, sessions, and vendors.
+I run a handful of agents on my laptop. One files notes for me, one answers questions about my projects, one watches news and tells me when something matters. Each of them is fine on its own. Together they are forgetful in a way that took me a while to name.
 
-I built **AMP (Agent Memory Protocol)** to answer that. It's an open, HTTP-native protocol for agent memory interoperability.
+The notes agent knows I read email slowly and prefer short messages. The other two ask me every day how I want to be contacted.
 
-- Repo: https://github.com/glatinone/agent-memory-protocol
-- Docs: https://glatinone.github.io/agent-memory-protocol/
-- Spec: https://github.com/glatinone/agent-memory-protocol/tree/master/spec/v0.1.0
+It is not that the models are weak. Each agent has its own memory layer, its own storage, and its own idea of what a memory even is. LangChain has memory classes, LlamaIndex has its own, CrewAI and AutoGen have theirs. A LangChain agent cannot read a LlamaIndex agent's memory, and there is no agreed shape to hand over even if it could.
 
-## The problem: memory is fragmented
+Anthropic's Model Context Protocol already solved the other half of this problem. Before MCP, every agent had a bespoke way to call a tool, and now there is a standard nobody has to think about. Memory never got that treatment. So one weekend I sat down to write the smallest thing that would fix it for my own setup, and then I kept going.
 
-Every framework handles memory its own way. LangChain has its own memory classes. LlamaIndex has its own. CrewAI and AutoGen too. Managed memory services each have a proprietary data model.
+> **TL;DR:** MCP standardized how agents call tools. Nothing standardized how they remember. I wrote AMP, an open HTTP protocol for agent memory. This is what it defines, and the five things I got wrong building it.
 
-So when you want a LangChain agent and a LlamaIndex agent to share context, you write a custom sync layer. When a session ends, the agent's context is either gone or buried somewhere other agents can't reach it. And there's no agreement on what a "memory" even contains, so there is nothing to sync in the first place.
+## What I actually built
 
-## What existing options don't cover
+![Three agents from different frameworks talking to one AMP server over HTTP, which keeps cells in ChromaDB or PostgreSQL](FIGURE_ARCHITECTURE_PLACEHOLDER)
 
-- **Raw vector databases** store and search documents, but they have no concept of who an agent is, when a memory should fade, or who is allowed to read it.
-- **Managed memory APIs** give you those things, but they lock your agent's state behind one vendor's API.
-- **Framework memory classes** are locked to that framework by definition.
+Three pieces, and I worked hard not to add a fourth.
 
-None of these is a protocol. What's missing is an interface any agent, in any language, can speak.
+**A memory cell.** One JSON shape for a memory: the content, who owns it, who created it, which session it came from, an importance score, and an access policy. If two agents disagree about what a memory is, nothing else in the design matters.
 
-## What AMP defines
+**A small REST API.** Plain HTTP under `/amp/v1`. Writing a memory is a POST with a JSON body. No SDK required, which matters more than it sounds: a protocol that only one language can speak is a library. There are clients for Python and Node anyway, but the wire format is the contract.
 
-AMP decouples agent execution from memory storage. Three pieces:
+**A lifecycle.** Cells carry an importance score that decays over time, and a background job moves them from `active` to `stale` to `archived` as the score falls. This is the part I care about most, because it is the difference between a memory store and a leak. Context that stopped mattering should leave search results on its own.
 
-**1. A Memory Cell schema.** One JSON shape for a memory: content, metadata, identity (owner, creator, session), scoring (importance, confidence, decay rate), access policy, and provenance.
+> **TL;DR:** One JSON shape for a memory, a REST API under `/amp/v1` that any language can speak, and a decay engine that retires stale context without you writing a cron job.
 
-**2. An HTTP-native API.** Plain REST under `/amp/v1`. Writing a memory is a POST with a JSON body. Access control is declared per cell and enforced by the `X-AMP-Agent-ID` header. Any language that can make an HTTP request can speak AMP, no SDK required.
+## Sharing is the part I underestimated
 
-**3. A lifecycle and decay engine.** Every cell has an importance score that decays over time. The reference server runs a background job that moves cells through `active` -> `stale` -> `archived` based on that score, so context that's no longer relevant drops out of search on its own. It runs by default, the interval is configurable, and you can disable it and trigger runs yourself through an admin endpoint.
-
-## Access control is the part I care about most
-
-Multi-agent systems need memory sharing, and sharing needs permission. AMP puts an `access_policy` on every cell:
+Multi-agent memory only gets interesting when agents share it, and sharing needs permission. Permission belongs on the cell, not on the caller:
 
 ```json
 {
@@ -52,90 +44,69 @@ Multi-agent systems need memory sharing, and sharing needs permission. AMP puts 
 }
 ```
 
-Wildcards work. `public` defaults to false. And a cell that has been deleted returns the same `403` whether it exists or not, so you can't probe for existence through error codes.
+Wildcards work, `public` defaults to false, and an agent that may not read a cell gets the same `403` whether the cell exists or not. That last part is deliberate. If invisible and deleted answered differently, error codes would become a way to probe for data you are not allowed to read.
 
-## See it work
+![Agent A stores a preference, agent B reads it and gets 200 with one memory, agent C asks the same question and gets 403 with zero memories](FIGURE_ACCESS_PLACEHOLDER)
 
-The repo has a multi-agent demo where two agents share memory and a third is blocked:
+The demo in the repo runs exactly that scene with real agents: customer service stores a preference, billing reads it back, marketing asks the same question and gets nothing.
 
-```text
-[AGENT A]
-CustomerServiceAgent received: 'User prefers email correspondence.'
-Stored preference memory ID: mem_01M405R0HS566J9DZDRESG4HV2
+> **TL;DR:** Permission sits on the cell (`readable_by`, `writable_by`, `public: false`), and a cell you cannot read looks identical to a deleted one, so error codes cannot be used to probe.
 
-[AGENT B]
-BillingAgent assisted user: user_123
-Retrieved response: "I see you prefer email, so I will send your bill there."
+## Memories that fade
 
-[AGENT C]
-MarketingAgent try_access results: 0 memories retrieved
-Agent C retrieved 0 memories - access control working correctly
+Every cell has an importance score and a decay rate. The reference server runs a job that walks cells through `active`, then `stale`, then `archived` as the score drops, with the thresholds written down rather than buried in code (stale below 0.3, archived after 30 days). You can change the interval, or turn the job off and trigger runs yourself through an admin endpoint.
 
-[SUMMARY]
-AMP Demo complete. Two agents shared memory. One was blocked.
-```
+![Importance score falling over 60 days, crossing the 0.3 stale threshold and the 30 day archive threshold into the archived region](FIGURE_DECAY_PLACEHOLDER)
 
-Agent B could read the preference because the policy allowed it. Agent C could not, and got nothing back.
+I also gave it a floor: a purge refuses to delete a cell inside a 30 day retention window, because "we keep your data for 30 days" is a promise you make to whoever stored it.
 
-## Using it
+> **TL;DR:** Importance decays, cells fall through `active` to `stale` to `archived` on their own, and deletion refuses to beat the retention window the docs advertise.
 
-Start the server:
+## The five things I got wrong
+
+This is the part I would want to read in someone else's post, so it goes in.
+
+**1. I wrote the same rule twice.** Search did its own read check, and the storage layer had another one. They disagreed for exactly one kind of agent id, which a test caught by asserting that both callers give the same answer. There is one rule now, in one function, with a test that keeps it there. Duplicated policy is not a style problem, it is a bug waiting for its second caller.
+
+**2. I documented a policy that nothing enforced.** The docstring said the retention window was enforced server side. The code would happily delete a cell a second after it was marked deleted, because the function that checked the window was called by nobody. The docs and the code disagreed, and the docs were winning. That is the worst version of that pair.
+
+**3. My mocks passed while a method could never work.** The async client's `forget()` never marked a cell archived before deleting it, so every call came back `409`. The tests passed because a mock answered the DELETE and never modelled the precondition. Mocks do not know your rules. I added a small suite that runs against a real server, and then proved it can fail by putting the bug back.
+
+**4. A route existed that could never be reached.** `GET /memories/query` was registered after `GET /memories/{memory_id}`, so the word "query" was parsed as a memory id. The endpoint was in the code, in the docs, and in the auth tests. It just never ran. The listing route is registered first now, and a test asserts it answers as itself.
+
+**5. My first benchmark measured three things at once.** Each sample used a different query, so the table claimed 5000 cells were faster than 1000. I measured one repeated query instead, added a minimum column, and reran it on a quiet machine. The real numbers are in `docs/performance.md`, next to the parts they do not cover.
+
+The through line is that every one of those was a claim that did not survive contact with a test. So I wrote a conformance suite that talks to a server over HTTP and imports nothing from my implementation. I can point it at someone else's server and get an honest answer about where it differs from the spec.
+
+> **TL;DR:** Duplicated rules disagree. A documented policy that nothing enforces is worse than no policy. Mocks do not know your rules. Route registration order can make an endpoint unreachable. My first benchmark measured the wrong thing. Writing a conformance suite that imports nothing from the implementation is what made all five visible.
+
+## What it is not yet
+
+- **Not on PyPI or npm.** You install from the repo today.
+- **No hosted service.** You run it yourself, which I think is right for a protocol at this stage.
+- **Clients for Python and Node only.** Go and Rust are the ones people ask for.
+- **Storage is pluggable.** ChromaDB by default with no infrastructure, or PostgreSQL with `pgvector`. Both pass the same adapter contract tests.
+- **Auth is opt-in and keys only.** Leave it off and the server trusts the `X-AMP-Agent-ID` header, which is what the spec describes for local use. Turn it on and a key is required, but there are no scopes, expiry or rotation yet, so an internet facing deployment still wants something in front of it.
+- **The decay defaults are mine.** 0.3 and 30 days are numbers I picked, not numbers I validated against a real workload.
+
+## Poking at it
 
 ```bash
 git clone https://github.com/glatinone/agent-memory-protocol.git
-cd agent-memory-protocol/server
-docker compose up -d
+cd agent-memory-protocol/server && docker compose up -d
+
+# a memory shared with agent_billing_*, read back by an allowed agent
+curl -s http://localhost:8765/amp/v1/memories/search \
+  -H 'X-AMP-Agent-ID: agent_billing_v1' -H 'Content-Type: application/json' \
+  -d '{"query": "contact preference", "owner_id": "user_123", "limit": 3}'
 ```
 
-Then talk to it. Python:
+Repo: https://github.com/glatinone/agent-memory-protocol
+Spec and docs: https://glatinone.github.io/agent-memory-protocol/
+Conformance suite: `conformance/` in the repo, 39 vectors, HTTP only, no dependency on the reference server.
 
-```python
-from amp_client import AMPClient
+## What I would like to know
 
-client = AMPClient("http://localhost:8765", agent_id="settings-agent")
+If you run multi-agent systems, how do you handle memory today? Do you keep episodic and semantic memory separate, or treat them as one thing with different scores? And does a shared schema across frameworks actually help, or does it just move the problem somewhere else?
 
-cell = client.remember(
-    content={"text": "User prefers dark mode for UI components"},
-    owner_id="user-123",
-    readable_by=["settings-agent", "ui-agent"],
-)
-
-ui_client = AMPClient("http://localhost:8765", agent_id="ui-agent")
-results = ui_client.recall(
-    query="what color scheme does the user prefer?",
-    owner_id="user-123",
-)
-for item in results:
-    print(item["content"]["text"])
-```
-
-Or in plain HTTP, no SDK at all:
-
-```bash
-curl -X POST http://localhost:8765/amp/v1/memories \
-  -H "X-AMP-Agent-ID: my-agent" \
-  -H "Content-Type: application/json" \
-  -d '{"type":"semantic","content":{"text":"User prefers email"},"identity":{"owner_id":"user-123","owner_type":"user"}}'
-```
-
-There's a Node.js client too, with no dependencies (Node 18+ has `fetch`).
-
-## What AMP is not, yet
-
-Being straight about this, because it matters more than a feature list:
-
-- **Not on PyPI or npm yet.** Install from the repo.
-- **No hosted service.** You self-host. That's on purpose for now: your memory data stays yours while the protocol gets validated.
-- **Python and Node.js clients only.** Go and Rust are planned.
-- **Storage is pluggable.** ChromaDB is the default and needs no infrastructure; `AMP_STORAGE_BACKEND=postgres` keeps cells in PostgreSQL with `pgvector` instead.
-- **Auth is opt-in, and keys only.** By default the memory endpoints trust the `X-AMP-Agent-ID` header, which is the binding the spec describes. Set `AMP_API_KEYS_FILE` and a key is required. There are no scopes, expiry or rotation yet, so an internet-facing deployment still wants something in front of it.
-
-## What's next
-
-More SDKs (Go, Rust), framework plugins beyond the existing LangChain integration, and auth that goes past a shared secret per agent: scopes, expiry, rotation, OIDC. The Postgres adapter landed in this release, along with an opt-in API-key mode, so those two are off the list. If that's the kind of thing you'd use, issues and PRs are open.
-
-If you've built multi-agent systems, I'd like to hear how you handle memory today, especially episodic vs semantic, and whether a shared schema across frameworks would actually help or just move the problem.
-
----
-
-*AMP is MIT licensed. Spec v0.1.0, reference server (FastAPI + ChromaDB), and clients for Python and Node.js are all in the repo.*
+I am genuinely unsure about that last one. A protocol is only worth the agreement people give it, and I would rather be told the idea is wrong now than after more people depend on it. Issues and PRs are open.
