@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import uuid
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 
@@ -22,6 +23,7 @@ from amp_server.models import (
     OwnerType,
     SourceType,
 )
+from amp_server.retention import RETENTION_DAYS
 from amp_server.storage.chroma import ChromaAdapter
 
 
@@ -117,6 +119,74 @@ def make_cell(
             extraction_method=ExtractionMethod.LLM_EXTRACTION,
         ),
     )
+
+
+# --- The HTTP app -----------------------------------------------------------
+#
+# Every test file that talks to the HTTP app needs the app pointed at state the
+# test owns, because `get_storage()` reads a module global that the lifespan sets
+# when a real server boots. Each file used to install that itself - five slightly
+# different copies - and a file that forgot reached whatever state a *previous
+# file* had left behind. That held while the whole suite ran in one process and
+# broke the moment a single file was run, which is how anyone runs it while
+# working. One helper, in conftest, so a file cannot get it subtly differently and
+# cannot silently inherit somebody else's.
+
+
+def install_app_state(
+    *,
+    api_key_store=None,
+    scoring_limit=None,
+    scoring_clock=None,
+    lifecycle_settings=None,
+    retention_days: int = RETENTION_DAYS,
+):
+    """Point the app at fresh state the way the lifespan would.
+
+    Returns the objects it installed, so a test can assert against the same
+    storage or limiter the app is using rather than a second copy.
+    """
+    import amp_server.main as main_mod
+    from amp_server.lifecycle import LifecycleEngine
+    from amp_server.ratelimit import ScoringPatchLimit, ScoringPatchLimiter
+
+    storage = ChromaAdapter(
+        collection_name=f"test_{uuid.uuid4().hex[:12]}",
+        retention_days=retention_days,
+    )
+    limit = scoring_limit or ScoringPatchLimit()
+    limiter = ScoringPatchLimiter(
+        limit, **({"clock": scoring_clock} if scoring_clock else {})
+    )
+
+    main_mod._storage = storage
+    main_mod._lifecycle = LifecycleEngine(storage)
+    main_mod._api_key_store = api_key_store
+    main_mod._scoring_limit = limit
+    main_mod._scoring_limiter = limiter
+    if lifecycle_settings is not None:
+        main_mod._lifecycle_settings = lifecycle_settings
+
+    return SimpleNamespace(storage=storage, limiter=limiter, scoring_limit=limit)
+
+
+@pytest.fixture
+def app_state():
+    """Fresh app state for one test."""
+    return install_app_state()
+
+
+@pytest.fixture
+async def app_client(app_state):
+    """An AsyncClient over the app, on state this test owns."""
+    from httpx import ASGITransport, AsyncClient
+
+    import amp_server.main as main_mod
+
+    async with AsyncClient(
+        transport=ASGITransport(app=main_mod.app), base_url="http://test"
+    ) as client:
+        yield client
 
 
 def make_create_body(

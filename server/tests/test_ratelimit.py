@@ -10,10 +10,8 @@ mitigation, it is an outage.
 
 from __future__ import annotations
 
-import uuid
-
 import pytest
-from conftest import make_cell
+from conftest import install_app_state, make_cell
 from httpx import ASGITransport, AsyncClient, Response
 
 from amp_server.models import LifecycleStatus, MemoryCellUpdate, MemoryScoring
@@ -45,20 +43,10 @@ class FakeClock:
 def _install_app(
     limit: ScoringPatchLimit | None = None, clock: FakeClock | None = None
 ) -> ScoringPatchLimiter:
-    """Fresh storage plus a limiter the test controls."""
-    import amp_server.main as main_mod
-    from amp_server.lifecycle import LifecycleEngine
-    from amp_server.storage.chroma import ChromaAdapter
-
-    main_mod._storage = ChromaAdapter(collection_name=f"test_{uuid.uuid4().hex[:12]}")
-    main_mod._lifecycle = LifecycleEngine(main_mod._storage)
-    main_mod._api_key_store = None
-
-    resolved = limit or ScoringPatchLimit()
-    limiter = ScoringPatchLimiter(resolved, clock=clock or FakeClock())
-    main_mod._scoring_limit = resolved
-    main_mod._scoring_limiter = limiter
-    return limiter
+    """Fresh state with the budget and clock this test wants."""
+    return install_app_state(
+        scoring_limit=limit, scoring_clock=clock or FakeClock()
+    ).limiter
 
 
 async def _client() -> AsyncClient:

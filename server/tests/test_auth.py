@@ -14,10 +14,9 @@ tests pin both halves of the arrangement:
 from __future__ import annotations
 
 import json
-import uuid
 
 import pytest
-from conftest import make_cell
+from conftest import install_app_state, make_cell
 from httpx import ASGITransport, AsyncClient
 
 from amp_server.auth import ApiKeyStore, digest, load_store, store_from_env
@@ -28,14 +27,8 @@ _HEADERS = {"X-AMP-Agent-ID": "agent-one"}
 
 
 def _install_app(store: ApiKeyStore | None = None) -> None:
-    """Point the app at a fresh storage + engine, as the lifespan would."""
-    import amp_server.main as main_mod
-    from amp_server.lifecycle import LifecycleEngine
-    from amp_server.storage.chroma import ChromaAdapter
-
-    main_mod._storage = ChromaAdapter(collection_name=f"test_{uuid.uuid4().hex[:12]}")
-    main_mod._lifecycle = LifecycleEngine(main_mod._storage)
-    main_mod._api_key_store = store
+    """Fresh state with this file's one difference: the key store."""
+    install_app_state(api_key_store=store)
 
 
 def _store(monkeypatch, tmp_path, keys: dict[str, str]) -> ApiKeyStore:

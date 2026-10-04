@@ -10,10 +10,8 @@ size of the page it had just handed over.
 
 from __future__ import annotations
 
-import uuid
-
 import pytest
-from conftest import make_cell
+from conftest import install_app_state, make_cell
 from httpx import ASGITransport, AsyncClient, Response
 
 from amp_server.models import MAX_PAGE_SIZE, LifecycleStatus
@@ -23,14 +21,10 @@ _READER = "agent-paging-reader"
 _STRANGER = "agent-paging-stranger"
 
 
-def _install_app() -> None:
-    import amp_server.main as main_mod
-    from amp_server.lifecycle import LifecycleEngine
-    from amp_server.storage.chroma import ChromaAdapter
-
-    main_mod._storage = ChromaAdapter(collection_name=f"test_{uuid.uuid4().hex[:12]}")
-    main_mod._lifecycle = LifecycleEngine(main_mod._storage)
-    main_mod._api_key_store = None
+@pytest.fixture(autouse=True)
+def _state():
+    """Every test here talks to the app, so every test gets its own state."""
+    install_app_state()
 
 
 async def _client() -> AsyncClient:
@@ -64,7 +58,6 @@ def _headers(agent_id: str = _READER) -> dict[str, str]:
 
 @pytest.mark.asyncio
 async def test_a_page_reports_what_it_returned_and_whether_more_follows():
-    _install_app()
     await _seed(3, readable_by=[_READER])
 
     async with await _client() as client:
@@ -85,7 +78,6 @@ async def test_a_page_reports_what_it_returned_and_whether_more_follows():
 
 @pytest.mark.asyncio
 async def test_pages_do_not_overlap_and_cover_everything():
-    _install_app()
     stored = await _seed(5, readable_by=[_READER])
 
     seen: list[str] = []
@@ -114,7 +106,6 @@ async def test_the_limit_counts_cells_the_caller_may_read():
     must be three readable cells with `has_more` false - the old store-level
     limit would have examined only the first three candidates and returned none.
     """
-    _install_app()
     await _seed(4, readable_by=[_STRANGER])
     readable = await _seed(3, readable_by=[_READER])
 
@@ -128,7 +119,6 @@ async def test_the_limit_counts_cells_the_caller_may_read():
 
 @pytest.mark.asyncio
 async def test_offset_past_the_end_is_empty_and_says_so():
-    _install_app()
     await _seed(2, readable_by=[_READER])
 
     async with await _client() as client:
@@ -143,7 +133,6 @@ async def test_offset_past_the_end_is_empty_and_says_so():
 
 @pytest.mark.asyncio
 async def test_a_cell_the_caller_cannot_read_never_shows_up():
-    _install_app()
     await _seed(3, readable_by=[_STRANGER])
 
     async with await _client() as client:
@@ -154,7 +143,6 @@ async def test_a_cell_the_caller_cannot_read_never_shows_up():
 
 @pytest.mark.asyncio
 async def test_deleted_cells_are_not_listed_by_default():
-    _install_app()
     import amp_server.main as main_mod
 
     cell = make_cell(
@@ -178,7 +166,6 @@ async def test_deleted_cells_are_not_listed_by_default():
 @pytest.mark.asyncio
 async def test_the_page_size_is_bounded_on_both_ends():
     """An unbounded limit is a request for the whole store."""
-    _install_app()
     await _seed(1, readable_by=[_READER])
 
     async with await _client() as client:
@@ -197,7 +184,6 @@ async def test_the_page_size_is_bounded_on_both_ends():
 
 @pytest.mark.asyncio
 async def test_the_query_alias_pages_the_same_way():
-    _install_app()
     await _seed(3, readable_by=[_READER])
 
     async with await _client() as client:
@@ -214,7 +200,6 @@ async def test_the_query_alias_pages_the_same_way():
 
 @pytest.mark.asyncio
 async def test_spec_advertises_the_page_ceiling():
-    _install_app()
 
     async with await _client() as client:
         capabilities = (await client.get("/amp/v1/spec")).json()["capabilities"]
@@ -243,7 +228,6 @@ def _query(**overrides: object) -> dict:
 
 @pytest.mark.asyncio
 async def test_search_pages_with_offset_and_reports_has_more():
-    _install_app()
     await _seed(3, readable_by=[_READER])
 
     first = (await _search(_query(limit=2))).json()
@@ -257,7 +241,6 @@ async def test_search_pages_with_offset_and_reports_has_more():
 
 @pytest.mark.asyncio
 async def test_search_echoes_the_window_it_used():
-    _install_app()
     await _seed(2, readable_by=[_READER])
 
     body = (await _search(_query(limit=1, offset=1))).json()
@@ -269,7 +252,6 @@ async def test_search_echoes_the_window_it_used():
 
 @pytest.mark.asyncio
 async def test_search_pages_do_not_overlap_and_cover_everything():
-    _install_app()
     stored = await _seed(5, readable_by=[_READER])
 
     seen: list[str] = []
@@ -295,7 +277,6 @@ async def test_search_pages_do_not_overlap_and_cover_everything():
 @pytest.mark.asyncio
 async def test_the_search_window_counts_results_the_caller_may_read():
     """Same rule as the listing endpoints: read first, then window."""
-    _install_app()
     await _seed(4, readable_by=[_STRANGER])
     readable = await _seed(3, readable_by=[_READER])
 
@@ -308,7 +289,6 @@ async def test_the_search_window_counts_results_the_caller_may_read():
 
 @pytest.mark.asyncio
 async def test_a_search_window_outside_the_bounds_is_refused():
-    _install_app()
     await _seed(1, readable_by=[_READER])
 
     assert (await _search(_query(limit=MAX_PAGE_SIZE + 1))).status_code == 422
@@ -319,7 +299,6 @@ async def test_a_search_window_outside_the_bounds_is_refused():
 @pytest.mark.asyncio
 async def test_the_search_ceiling_is_the_advertised_one():
     """One number for both endpoints, so a client cannot be told two."""
-    _install_app()
 
     async with await _client() as client:
         advertised = (await client.get("/amp/v1/spec")).json()["capabilities"][

@@ -13,7 +13,6 @@ import uuid
 
 import pytest
 from conftest import make_cell
-from httpx import ASGITransport, AsyncClient
 
 from amp_server.lifecycle import check_status_transition
 from amp_server.models import (
@@ -149,109 +148,61 @@ async def _create(client) -> dict:
 
 
 @pytest.mark.asyncio
-async def test_patch_to_deleted_is_409():
-    import amp_server.main as main_mod
-    from amp_server.lifecycle import LifecycleEngine
-    from amp_server.storage.chroma import ChromaAdapter
-
-    main_mod._storage = ChromaAdapter(collection_name=f"test_{uuid.uuid4().hex[:12]}")
-    main_mod._lifecycle = LifecycleEngine(main_mod._storage)
-
-    async with AsyncClient(
-        transport=ASGITransport(app=main_mod.app), base_url="http://test"
-    ) as client:
-        cell = await _create(client)
-        response = await client.patch(
-            f"/amp/v1/memories/{cell['id']}",
-            headers=_HEADERS,
-            json={
-                "lifecycle": {
-                    "created_at": cell["lifecycle"]["created_at"],
-                    "status": "deleted",
-                }
-            },
-        )
+async def test_patch_to_deleted_is_409(app_client):
+    cell = await _create(app_client)
+    response = await app_client.patch(
+        f"/amp/v1/memories/{cell['id']}",
+        headers=_HEADERS,
+        json={"lifecycle": {"status": "deleted"}},
+    )
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "INVALID_TRANSITION"
 
 
 @pytest.mark.asyncio
-async def test_archived_cell_cannot_be_patched_back_to_active():
-    import amp_server.main as main_mod
-    from amp_server.lifecycle import LifecycleEngine
-    from amp_server.storage.chroma import ChromaAdapter
+async def test_archived_cell_cannot_be_patched_back_to_active(app_client):
+    cell = await _create(app_client)
 
-    main_mod._storage = ChromaAdapter(collection_name=f"test_{uuid.uuid4().hex[:12]}")
-    main_mod._lifecycle = LifecycleEngine(main_mod._storage)
+    archived = await app_client.patch(
+        f"/amp/v1/memories/{cell['id']}",
+        headers=_HEADERS,
+        json={"lifecycle": {"status": "archived"}},
+    )
+    assert archived.status_code == 200
 
-    async with AsyncClient(
-        transport=ASGITransport(app=main_mod.app), base_url="http://test"
-    ) as client:
-        cell = await _create(client)
-
-        archived = await client.patch(
-            f"/amp/v1/memories/{cell['id']}",
-            headers=_HEADERS,
-            json={
-                "lifecycle": {
-                    "created_at": cell["lifecycle"]["created_at"],
-                    "status": "archived",
-                }
-            },
-        )
-        assert archived.status_code == 200
-
-        resurrect = await client.patch(
-            f"/amp/v1/memories/{cell['id']}",
-            headers=_HEADERS,
-            json={
-                "lifecycle": {
-                    "created_at": archived.json()["lifecycle"]["created_at"],
-                    "status": "active",
-                }
-            },
-        )
+    resurrect = await app_client.patch(
+        f"/amp/v1/memories/{cell['id']}",
+        headers=_HEADERS,
+        json={"lifecycle": {"status": "active"}},
+    )
 
     assert resurrect.status_code == 409
     assert resurrect.json()["error"]["code"] == "INVALID_TRANSITION"
 
 
 @pytest.mark.asyncio
-async def test_a_deleted_cell_is_403_not_409():
+async def test_a_deleted_cell_is_403_not_409(app_client):
     """§8.4 still wins: a deleted cell is invisible, not explained."""
-    import amp_server.main as main_mod
-    from amp_server.lifecycle import LifecycleEngine
-    from amp_server.storage.chroma import ChromaAdapter
+    cell = await _create(app_client)
 
-    main_mod._storage = ChromaAdapter(collection_name=f"test_{uuid.uuid4().hex[:12]}")
-    main_mod._lifecycle = LifecycleEngine(main_mod._storage)
+    # Archive then delete through the documented route, one request each: no
+    # reading the cell first to echo `created_at` back.
+    await app_client.patch(
+        f"/amp/v1/memories/{cell['id']}",
+        headers=_HEADERS,
+        json={"lifecycle": {"status": "archived"}},
+    )
+    deleted = await app_client.delete(
+        f"/amp/v1/memories/{cell['id']}", headers=_HEADERS
+    )
+    assert deleted.status_code == 204
 
-    async with AsyncClient(
-        transport=ASGITransport(app=main_mod.app), base_url="http://test"
-    ) as client:
-        cell = await _create(client)
-        # Archive then delete through the documented route.
-        await client.patch(
-            f"/amp/v1/memories/{cell['id']}",
-            headers=_HEADERS,
-            json={
-                "lifecycle": {
-                    "created_at": cell["lifecycle"]["created_at"],
-                    "status": "archived",
-                }
-            },
-        )
-        deleted = await client.delete(
-            f"/amp/v1/memories/{cell['id']}", headers=_HEADERS
-        )
-        assert deleted.status_code == 204
-
-        response = await client.patch(
-            f"/amp/v1/memories/{cell['id']}",
-            headers=_HEADERS,
-            json={"content": {"text": "still here?"}},
-        )
+    response = await app_client.patch(
+        f"/amp/v1/memories/{cell['id']}",
+        headers=_HEADERS,
+        json={"content": {"text": "still here?"}},
+    )
 
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "ACCESS_DENIED"

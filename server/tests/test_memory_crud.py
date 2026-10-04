@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from conftest import make_cell
+from conftest import install_app_state, make_cell
 from httpx import ASGITransport, AsyncClient
 
 from amp_server.models import (
@@ -28,20 +28,11 @@ def _app_state():
 
     The HTTP tests here used to reach the app through whatever storage a *previous
     test file* had left on the module. That held while the whole suite ran in one
-    process and broke the moment this file ran alone - which is how CI runs it in
-    the Hermes repository this project borrows its test discipline from, and how
-    anyone runs a single file while working on it. A test that only passes in the
-    company of another test is not measuring what it claims to.
+    process and broke the moment this file ran alone - which is how a single file
+    gets run while working on it. A test that only passes in the company of another
+    test is not measuring what it claims to.
     """
-    import amp_server.main as main_mod
-    from amp_server.lifecycle import LifecycleEngine
-    from amp_server.ratelimit import ScoringPatchLimit, ScoringPatchLimiter
-
-    main_mod._storage = ChromaAdapter(collection_name=f"test_{uuid.uuid4().hex[:12]}")
-    main_mod._lifecycle = LifecycleEngine(main_mod._storage)
-    main_mod._api_key_store = None
-    main_mod._scoring_limit = ScoringPatchLimit()
-    main_mod._scoring_limiter = ScoringPatchLimiter(main_mod._scoring_limit)
+    install_app_state()
 
 
 # ---------------------------------------------------------------------------

@@ -8,10 +8,8 @@ each one is tied to a behaviour.
 
 from __future__ import annotations
 
-import uuid
-
 import pytest
-from conftest import make_cell
+from conftest import install_app_state, make_cell
 from httpx import ASGITransport, AsyncClient
 
 from amp_server.errors import AMPError
@@ -28,13 +26,15 @@ def _body(text: str) -> dict:
     }
 
 
+@pytest.fixture(autouse=True)
+def _state():
+    """Every test here reads `/spec`, which reports the state the app is holding."""
+    install_app_state()
+
+
 async def _client():
     import amp_server.main as main_mod
-    from amp_server.lifecycle import LifecycleEngine
-    from amp_server.storage.chroma import ChromaAdapter
 
-    main_mod._storage = ChromaAdapter(collection_name=f"test_{uuid.uuid4().hex[:12]}")
-    main_mod._lifecycle = LifecycleEngine(main_mod._storage)
     return AsyncClient(
         transport=ASGITransport(app=main_mod.app), base_url="http://test"
     )

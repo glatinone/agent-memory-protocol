@@ -52,9 +52,20 @@ jobs:
       - name: Install server package
         working-directory: server
         run: pip install -e ".[dev]"
-      - name: Run server tests
+      # One process per test file - the discipline `scripts/run_tests.sh` enforces
+      # in the project this repo borrows its test practice from, and for the same
+      # reason. Two files here reached the app through state a *previous* file had
+      # left on the module: they passed in a single-process run and failed the
+      # moment one file was run alone. The shell already runs with `-e`, so the
+      # loop stops at the first failing file.
+      - name: Run server tests (one process per file)
         working-directory: server
-        run: pytest -v
+        run: |
+          for f in tests/test_*.py; do
+            echo "::group::$f"
+            pytest -q "$f"
+            echo "::endgroup::"
+          done
       - name: Security scan (pip-audit)
         working-directory: server
         continue-on-error: true

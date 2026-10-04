@@ -71,6 +71,32 @@ pytest -v python/tests
 node --test test/client.test.js
 ```
 
+### Tests
+
+**Every test file must pass on its own.** CI runs one process per file, so a test
+that only passes alongside another file fails the build rather than hiding. That
+rule exists because it has been broken twice: `test_memory_crud.py` and
+`test_error_shape.py` both reached the HTTP app through state a previous file had
+left on a module global, which held in a single-process run and broke the moment
+one file ran alone.
+
+A file that talks to the HTTP app takes the fixtures from `conftest.py`:
+
+```python
+@pytest.fixture(autouse=True)
+def _state():
+    install_app_state()          # fresh storage, engine, key store, limiter
+
+
+async def test_something(app_client):     # AsyncClient on that state
+    ...
+```
+
+`install_app_state(...)` takes the knobs a file needs to vary - `api_key_store`,
+`scoring_limit`, `scoring_clock`, `lifecycle_settings`, `retention_days` - and
+returns what it installed. Never install state from a test body that the next test
+depends on.
+
 ### Storage backends
 
 `tests/test_adapter_contract.py` runs the same behaviour tests against every

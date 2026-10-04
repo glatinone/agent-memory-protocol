@@ -218,6 +218,15 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   module, so the file only passed as part of the whole suite. An autouse fixture
   gives each test its own state.
 
+- **One place installs app state for tests, and CI runs one process per test
+  file.** Two files (`test_memory_crud.py`, `test_error_shape.py`) reached the HTTP
+  app through state a *previous* file had left on a module global. They passed as
+  part of the whole suite and failed the moment a single file was run - which is
+  how anyone runs one while working on it. Five files had each grown their own
+  slightly different installer; that is now `conftest.install_app_state()` with
+  `app_state` / `app_client` fixtures, and CI runs the server suite file by file so
+  the whole class fails loudly instead of being averaged away by test ordering.
+
 ### Changed
 - **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a
   conflict with `{"detail": ...}` while `DELETE` answered with

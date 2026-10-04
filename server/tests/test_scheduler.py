@@ -7,7 +7,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from conftest import make_cell
+from conftest import install_app_state, make_cell
 from httpx import ASGITransport, AsyncClient
 
 from amp_server.lifecycle import LifecycleEngine
@@ -315,13 +315,12 @@ def _install_app_state(
     retention_days: int = RETENTION_DAYS,
     purge_retention: bool = False,
 ) -> None:
-    """Point the app at a fresh storage + engine, as the lifespan would."""
-    import amp_server.main as main_mod
-
-    main_mod._storage = _fresh_storage(retention_days=retention_days)
-    main_mod._lifecycle = LifecycleEngine(main_mod._storage)
-    main_mod._lifecycle_settings = _settings(
-        admin_token=token, purge_retention=purge_retention
+    """Fresh state with this file's difference: the lifecycle settings."""
+    install_app_state(
+        retention_days=retention_days,
+        lifecycle_settings=_settings(
+            admin_token=token, purge_retention=purge_retention
+        ),
     )
 
 
