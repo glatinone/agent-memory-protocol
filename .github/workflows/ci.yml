@@ -89,9 +89,41 @@ jobs:
       - name: Install SDK package
         working-directory: sdk
         run: pip install -e ".[dev,langchain]"
-      - name: Run SDK tests
+
+      # The client tests that matter most are the ones against a real server:
+      # every mock-based test in this package passed while `forget` on the async
+      # client could not work at all.
+      - name: Install the reference server
+        if: matrix.python-version != '3.10'
+        working-directory: server
+        run: pip install -e .
+
+      - name: Start the reference server
+        if: matrix.python-version != '3.10'
+        working-directory: server
+        run: |
+          uvicorn amp_server.main:app --host 127.0.0.1 --port 8765 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8765/amp/v1/health && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8765/amp/v1/health
+
+      - name: Run SDK tests (unit)
         working-directory: sdk
-        run: pytest -v python/tests
+        run: pytest -v python/tests --ignore=python/tests/test_live_client.py
+
+      # Not run on 3.10: the reference server's own floor is 3.11, so that leg has
+      # nothing to talk to. The condition is explicit rather than a skip, because a
+      # skip would read as a pass.
+      - name: Run the SDK against a real server
+        if: matrix.python-version != '3.10'
+        working-directory: sdk
+        env:
+          # A skip here would report green while the client went unexercised - the
+          # same reason the storage job fails when its Postgres is missing.
+          AMP_REQUIRE_LIVE_SERVER: "1"
+        run: pytest -v python/tests/test_live_client.py
       - name: Security scan (pip-audit)
         working-directory: sdk
         continue-on-error: true

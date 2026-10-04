@@ -262,6 +262,18 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   conformance suite gained a vector so any implementation is held to the same
   shape (39 vectors now).
 
+- **The Python SDK is tested against a real server** (`sdk/python/tests/test_live_client.py`,
+  10 cases). Every other test in that package mocks the transport, which is how
+  `forget` on the async client shipped without the archiving PATCH the protocol
+  requires: the mock answered the DELETE and never modelled the
+  `archived -> deleted` precondition. The new file covers the round trips, the
+  access rule as seen from a client, the error codes as the SDK parses them
+  (including `VALIDATION_ERROR` from the previous fix), and both clients' `forget`.
+  It skips when no server is reachable so the package still tests on a laptop;
+  CI runs it with `AMP_REQUIRE_LIVE_SERVER=1`, which turns that skip into a
+  failure, and does not run it on the 3.10 leg because the reference server's own
+  floor is 3.11.
+
 ### Changed
 - **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a
   conflict with `{"detail": ...}` while `DELETE` answered with

@@ -97,6 +97,21 @@ async def test_something(app_client):     # AsyncClient on that state
 returns what it installed. Never install state from a test body that the next test
 depends on.
 
+### The Python SDK's live tests
+
+`sdk/python/tests/test_live_client.py` runs against a real server and skips when
+none is reachable, so the package still tests on a laptop. It exists because every
+other test in that package mocks the transport, and that is how `forget` on the
+async client shipped without the archiving PATCH it needs: the mock answered the
+DELETE and never modelled the protocol's `archived -> deleted` precondition.
+
+```bash
+AMP_TEST_URL=http://127.0.0.1:8765 pytest python/tests/test_live_client.py
+```
+
+CI sets `AMP_REQUIRE_LIVE_SERVER=1`, which turns the skip into a failure, so the
+job cannot pass without having exercised the client against the server it starts.
+
 ### Storage backends
 
 `tests/test_adapter_contract.py` runs the same behaviour tests against every
