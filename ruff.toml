@@ -1,5 +1,6 @@
 # Repo-root Ruff configuration, used for Python that the two packages do not
-# own (the demo scripts under examples/). server/ and sdk/ each carry their own
+# own (the demo scripts under examples/, the harness under benchmarks/). server/
+# and sdk/ each carry their own
 # [tool.ruff] block in their pyproject.toml, and Ruff resolves configuration per
 # file, so this file governs everything they do not.
 #

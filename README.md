@@ -151,6 +151,7 @@ simply absent from its results.
 - **[Documentation site](https://glatinone.github.io/agent-memory-protocol/)** — everything below, rendered
 - **[Getting started](docs/getting-started.md)** — server, SDK, embedding provider, storage backend, API keys
 - **[API reference](docs/api-reference.md)** — every endpoint, plus the error contract
+- **[Performance](docs/performance.md)** — measured storage and search numbers, and the two limits behind them
 - **[Spec, explained](docs/spec-explained.md)** — the schema and the decay formula without the formal notation
 - **[FAQ](docs/faq.md)** — including [how decay works in plain English](docs/faq.md#how-does-decay-work-in-plain-english)
 - **[Release notes](docs/release-notes-v0.1.0.md)** — what is in this version, and what is not
@@ -177,6 +178,10 @@ Worth reading before you build on this:
   run one per agent if you want per-agent rules to mean anything.
 - **The decay pass and the scoring-edit budget are per process.** Two servers over
   one database keep two of each.
+- **Search cost grows with collection size, not page size.** Both backends rank the
+  whole candidate set so a decay-weighted re-rank has something to re-rank, and the
+  access filter cannot be pushed into either store. [Measured numbers and how to
+  reproduce them](docs/performance.md).
 - **PostgreSQL support is proven in CI, not on every machine.** The machine this was
   developed on has no PostgreSQL, so the storage contract suite runs against a real
   `pgvector` container in CI and skips locally.

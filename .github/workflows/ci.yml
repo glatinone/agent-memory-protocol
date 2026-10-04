@@ -25,9 +25,15 @@ jobs:
         # to install the same extra for the same reason.
         run: pip install -e "server[dev,postgres]" -e "sdk[dev,langchain]" -e "conformance[dev]"
       - name: Ruff lint (every Python package)
-        run: ruff check server sdk conformance
+        run: ruff check server sdk conformance benchmarks
       - name: Ruff format check (every Python package)
-        run: ruff format --check server sdk conformance
+        run: ruff format --check server sdk conformance benchmarks
+
+      # The benchmark harness is not a gate on timing - a shared runner cannot
+      # produce a meaningful number - but it is a gate on the harness working.
+      # Without this a broken script rots quietly until somebody needs it.
+      - name: Benchmark harness runs
+        run: python benchmarks/run.py --sizes 20 --queries 2
       - name: mypy (server)
         working-directory: server
         run: mypy

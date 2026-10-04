@@ -274,6 +274,17 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   failure, and does not run it on the 3.10 leg because the reference server's own
   floor is 3.11.
 
+- **Performance is measured and published** (`benchmarks/run.py`, `docs/performance.md`).
+  Both backends rank the whole candidate set before cutting a page, so search latency
+  grows with how much is stored rather than with how much was asked for - a deliberate
+  trade for decay-weighted ranking, and one the docs did not state. The harness
+  measures ingest, search, by-id read and listing page at three collection sizes,
+  records the machine it ran on (absolute numbers mean nothing without it), and uses
+  a stub embedding so a run is offline and the numbers describe the store rather than
+  the model - which they explicitly exclude. The page also says what is not measured:
+  the embedding model, concurrency, and selective filters. CI runs the harness in a
+  smoke mode, so a broken script cannot rot quietly.
+
 ### Changed
 - **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a
   conflict with `{"detail": ...}` while `DELETE` answered with
