@@ -43,6 +43,20 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   stop matching the app, and `sdk/python/tests/test_openapi_contract.py` drives
   the real client through a recording adapter and fails when it calls a route the
   contract does not serve or omits a field the contract requires.
+- **`GET /spec` is now true.** It advertised `max_cell_size_bytes` while nothing
+  enforced it, so a client that sized its payloads against the advertised number
+  could still store a cell far larger. The limit lives in `amp_server.limits`,
+  the create and update paths measure the serialized cell against it before
+  writing anything, and a larger cell is refused with `413 CELL_TOO_LARGE` in the
+  same error envelope as every other protocol error.
+  `server/tests/test_spec_capabilities.py` ties each advertised capability to a
+  behaviour, and one of its tests proves the refusal is the limit doing the work
+  by disabling the check and watching the same request succeed. The conformance
+  suite gained a `spec_capabilities` category that checks a server against **its
+  own** advertised values - the advertised maximum really is the maximum, an
+  advertised `manual_run_endpoint` is a route that exists, and `/spec` and
+  `/health` agree on the version - so it holds for any implementation, not only
+  this one.
 
 ### Changed
 - **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a

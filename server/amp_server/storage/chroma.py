@@ -9,6 +9,7 @@ from typing import Any, cast
 import chromadb
 
 from amp_server.access_control import check_read_access
+from amp_server.limits import enforce_cell_size
 from amp_server.models import (
     LifecycleStatus,
     MemoryCell,
@@ -94,6 +95,8 @@ class ChromaAdapter(StorageAdapter):
         )
 
     async def save(self, cell: MemoryCell) -> str:
+        # Checked before anything is written, so a refused cell leaves no trace.
+        enforce_cell_size(cell)
         cell_data = _serialize_cell(cell)
         self._collection.add(
             ids=[cell.id],
@@ -144,6 +147,9 @@ class ChromaAdapter(StorageAdapter):
         self._apply_updates(cell_dict, updates_dict)
         cell_dict["lifecycle"]["last_updated_at"] = datetime.now(UTC).isoformat()
         updated_cell = _deserialize_cell(cell_dict)
+        # Enforced on the merged result and before the write, so a PATCH cannot
+        # grow a cell past the advertised maximum either.
+        enforce_cell_size(updated_cell)
         await self._update_internal(memory_id, updated_cell)
         return updated_cell
 

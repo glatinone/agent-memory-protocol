@@ -763,6 +763,16 @@
             },
             "description": "X-AMP-Agent-ID header is required"
           },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The cell exceeds the maximum size advertised at GET /spec"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -1194,6 +1204,16 @@
               }
             },
             "description": "The lifecycle transition is not permitted by the spec"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The cell exceeds the maximum size advertised at GET /spec"
           },
           "422": {
             "content": {

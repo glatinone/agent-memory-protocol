@@ -21,6 +21,7 @@ from amp_server.errors import (
     missing_agent_id,
 )
 from amp_server.lifecycle import LifecycleEngine
+from amp_server.limits import MAX_CELL_SIZE_BYTES
 from amp_server.models import (
     ErrorResponse,
     LifecycleStatus,
@@ -170,6 +171,12 @@ _INVALID_TRANSITION: dict[int | str, dict[str, Any]] = {
         "description": "The lifecycle transition is not permitted by the spec",
     }
 }
+_CELL_TOO_LARGE: dict[int | str, dict[str, Any]] = {
+    413: {
+        "model": ErrorResponse,
+        "description": "The cell exceeds the maximum size advertised at GET /spec",
+    }
+}
 
 
 # ---------------------------------------------------------------------------
@@ -189,7 +196,7 @@ async def spec() -> dict[str, Any]:
         "capabilities": {
             "mcp_compatible": False,
             "storage_backends": ["chroma"],
-            "max_cell_size_bytes": 65536,
+            "max_cell_size_bytes": MAX_CELL_SIZE_BYTES,
             "lifecycle_scheduler": {
                 "enabled": _lifecycle_settings.enabled,
                 "interval_seconds": _lifecycle_settings.interval_seconds,
@@ -228,7 +235,11 @@ async def run_lifecycle_now(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/memories", status_code=201, responses=_MISSING_AGENT_ID)
+@router.post(
+    "/memories",
+    status_code=201,
+    responses=_MISSING_AGENT_ID | _CELL_TOO_LARGE,
+)
 async def create_memory(
     body: MemoryCellCreate,
     x_amp_agent_id: str | None = Header(default=None),
@@ -292,7 +303,9 @@ async def get_memory(
 
 @router.patch(
     "/memories/{memory_id}",
-    responses=_MISSING_AGENT_ID | _ACCESS_DENIED | _INVALID_TRANSITION,
+    responses=(
+        _MISSING_AGENT_ID | _ACCESS_DENIED | _INVALID_TRANSITION | _CELL_TOO_LARGE
+    ),
 )
 async def update_memory(
     memory_id: str,

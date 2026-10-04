@@ -100,6 +100,16 @@ For the canonical protocol spec itself (not this endpoint), see
 [spec/v0.1.0/memory-cell.schema.json](https://github.com/glatinone/agent-memory-protocol/blob/master/spec/v0.1.0/memory-cell.schema.json) and
 [spec/v0.1.0/lifecycle.md](https://github.com/glatinone/agent-memory-protocol/blob/master/spec/v0.1.0/lifecycle.md).
 
+**Each capability is a claim the server has to honour**, and the conformance
+suite checks it against the server's own numbers rather than a fixed value:
+
+| Capability | What it commits the server to |
+|---|---|
+| `mcp_compatible` | Whether **this HTTP server** speaks MCP directly. It is `false`: the MCP integration ships as a separate stdio process (`amp-mcp`, see `examples/mcp-claude-desktop/`), not as an endpoint on this API. |
+| `storage_backends` | The adapters actually wired in. |
+| `max_cell_size_bytes` | The largest serialized cell the server will accept. Enforced on create and on update; a larger cell is refused with `413 CELL_TOO_LARGE` before anything is written, and the number here is the number the check uses. |
+| `lifecycle_scheduler` | Whether decay runs on a timer, how often, and the admin route that triggers a pass on demand. That route is gated on `AMP_ADMIN_TOKEN`; with no token configured it answers `403 ADMIN_DISABLED` rather than being absent. |
+
 ---
 
 ## POST /memories

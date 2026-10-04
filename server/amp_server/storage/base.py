@@ -30,6 +30,13 @@ class InvalidTransitionError(Exception):
 
 
 class StorageAdapter(ABC):
+    """Persistence for memory cells.
+
+    Implementations enforce the server's advertised cell size limit
+    (`amp_server.limits.MAX_CELL_SIZE_BYTES`) in `save` and `update`, before
+    writing, so a refused cell leaves no trace and `GET /spec` stays true.
+    """
+
     @abstractmethod
     async def save(self, cell: MemoryCell) -> str:
         """Persist a MemoryCell and return its id."""
