@@ -19,7 +19,7 @@ from amp_server.lifecycle import check_status_transition
 from amp_server.models import (
     LifecycleStatus,
     MemoryCellUpdate,
-    MemoryLifecycle,
+    MemoryLifecycleUpdate,
 )
 from amp_server.storage.base import InvalidTransitionError
 
@@ -75,9 +75,7 @@ async def test_storage_update_refuses_to_reach_deleted(storage):
     await storage.save(cell)
 
     update = MemoryCellUpdate(
-        lifecycle=MemoryLifecycle(
-            created_at=cell.lifecycle.created_at, status=LifecycleStatus.DELETED
-        )
+        lifecycle=MemoryLifecycleUpdate(status=LifecycleStatus.DELETED)
     )
     with pytest.raises(InvalidTransitionError):
         await storage.update(cell.id, update)
@@ -93,9 +91,7 @@ async def test_storage_update_refuses_to_unarchive(storage):
     await storage.save(cell)
 
     update = MemoryCellUpdate(
-        lifecycle=MemoryLifecycle(
-            created_at=cell.lifecycle.created_at, status=LifecycleStatus.ACTIVE
-        )
+        lifecycle=MemoryLifecycleUpdate(status=LifecycleStatus.ACTIVE)
     )
     with pytest.raises(InvalidTransitionError):
         await storage.update(cell.id, update)
@@ -108,9 +104,7 @@ async def test_storage_update_accepts_the_archiving_delete_flow(storage):
     await storage.save(cell)
 
     update = MemoryCellUpdate(
-        lifecycle=MemoryLifecycle(
-            created_at=cell.lifecycle.created_at, status=LifecycleStatus.ARCHIVED
-        )
+        lifecycle=MemoryLifecycleUpdate(status=LifecycleStatus.ARCHIVED)
     )
     updated = await storage.update(cell.id, update)
     assert updated.lifecycle.status is LifecycleStatus.ARCHIVED

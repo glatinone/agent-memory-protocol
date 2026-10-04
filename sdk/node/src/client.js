@@ -198,23 +198,32 @@ export class AMPClient {
   }
 
   /**
+   * Retrieve one memory cell by id.
+   *
+   * Reading resets the cell's decay clock server-side: the response carries the
+   * bumped `accessCount` and `lastAccessedAt`.
+   *
+   * @param {string} memoryId
+   * @returns {Promise<MemoryCell>}
+   */
+  async getMemory(memoryId) {
+    const response = await this._request("GET", `/memories/${memoryId}`);
+    return response.json();
+  }
+
+  /**
    * Archive then soft-delete a memory cell.
    *
-   * The server only permits `archived -> deleted`, so this PATCHes to
-   * `archived` first. The PATCH body must carry the cell's existing
-   * `created_at` because the whole `lifecycle` object is validated on write.
+   * The server only permits `archived -> deleted`, so this PATCHes to `archived`
+   * first. Two requests, no read: a lifecycle update merges into the stored cell,
+   * so the status alone is enough, and `created_at` cannot be changed by a client.
    *
    * @param {string} memoryId
    * @returns {Promise<boolean>} True when the delete returned 204.
    */
   async forget(memoryId) {
-    const cell = await (
-      await this._request("GET", `/memories/${memoryId}`)
-    ).json();
-    const createdAt = cell.lifecycle.created_at;
-
     await this._request("PATCH", `/memories/${memoryId}`, {
-      body: { lifecycle: { created_at: createdAt, status: "archived" } },
+      body: { lifecycle: { status: "archived" } },
     });
 
     const response = await this._request("DELETE", `/memories/${memoryId}`);

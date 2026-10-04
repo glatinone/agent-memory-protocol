@@ -72,20 +72,52 @@ async def test_async_recall_success(mock_post):
 
 
 @pytest.mark.asyncio
-@patch("httpx.AsyncClient.delete")
-async def test_async_forget_success(mock_delete):
+@patch("httpx.AsyncClient.get")
+async def test_async_get_memory_reads_one_cell(mock_get):
     mock_response = MagicMock(spec=httpx.Response)
-    mock_response.status_code = 204
-    mock_delete.return_value = mock_response
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"id": "mem_123", "scoring": {"access_count": 2}}
+    mock_get.return_value = mock_response
+
+    async with AsyncAMPClient("http://localhost:8000", "test_agent") as client:
+        cell = await client.get_memory("mem_123")
+
+    assert cell["id"] == "mem_123"
+    args, kwargs = mock_get.call_args
+    assert args[0] == "http://localhost:8000/amp/v1/memories/mem_123"
+    assert kwargs["headers"]["X-AMP-Agent-ID"] == "test_agent"
+
+
+@pytest.mark.asyncio
+@patch("httpx.AsyncClient.delete")
+@patch("httpx.AsyncClient.patch")
+async def test_async_forget_archives_before_deleting(mock_patch, mock_delete):
+    """The protocol only permits `archived -> deleted`, in that order.
+
+    This test was rewritten after the method shipped without the PATCH at all: it
+    mocked only DELETE, so it passed while a real server answered 409 for every
+    cell that was not already archived - which is every cell a caller wants to
+    forget. The mock now models the precondition it was hiding.
+    """
+    order: list[str] = []
+    archive = MagicMock(spec=httpx.Response)
+    archive.status_code = 200
+    mock_patch.side_effect = lambda *a, **k: (order.append("patch"), archive)[1]
+    deleted = MagicMock(spec=httpx.Response)
+    deleted.status_code = 204
+    mock_delete.side_effect = lambda *a, **k: (order.append("delete"), deleted)[1]
 
     async with AsyncAMPClient("http://localhost:8000", "test_agent") as client:
         res = await client.forget("mem_123")
 
     assert res is True
-    mock_delete.assert_called_once()
+    assert order == ["patch", "delete"]
+    args, kwargs = mock_patch.call_args
+    assert args[0] == "http://localhost:8000/amp/v1/memories/mem_123"
+    assert kwargs["json"] == {"lifecycle": {"status": "archived"}}
+    assert kwargs["headers"]["X-AMP-Agent-ID"] == "test_agent"
     args, kwargs = mock_delete.call_args
     assert args[0] == "http://localhost:8000/amp/v1/memories/mem_123"
-    assert kwargs["headers"]["X-AMP-Agent-ID"] == "test_agent"
 
 
 @pytest.mark.asyncio

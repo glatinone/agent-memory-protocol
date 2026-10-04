@@ -394,7 +394,23 @@ Any subset of the writable fields from the `MemoryCell` schema. Nested objects a
 | `lifecycle.status` | Manually transition status (e.g., force to `"archived"`) |
 | `lifecycle.expires_at` | Set or clear expiry timestamp |
 
+Send only what you are changing. A field you omit keeps its stored value, so
+archiving a cell is one request and no read:
+
+```bash
+curl -X PATCH http://localhost:8765/amp/v1/memories/mem_01J5A3B7K9M2N4P6Q8R0S1T3V5 \
+  -H "X-AMP-Agent-ID: agent-456" \
+  -H "Content-Type: application/json" \
+  -d '{"lifecycle": {"status": "archived"}}'
+```
+
 Fields that cannot be patched: `id`, `amp_version`, `identity`, `lifecycle.created_at`.
+`created_at` is not merely optional in the update schema, it is absent from it, and
+an extra field in a request body is ignored rather than applied - it is the anchor
+the decay formula measures a cell's age from, so a client able to rewrite it could
+reset that age. The patch model (`MemoryLifecycleUpdate`) is in the committed
+[OpenAPI contract](https://github.com/glatinone/agent-memory-protocol/blob/master/spec/v0.1.0/openapi.json),
+so a generated client will not offer it either.
 
 **Response `200 OK`** - the full updated cell
 

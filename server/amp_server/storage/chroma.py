@@ -154,7 +154,7 @@ class ChromaAdapter(StorageAdapter):
                 ) from exc
             check_status_transition(cell.lifecycle.status, target)
 
-        self._apply_updates(cell_dict, updates_dict)
+        apply_updates(cell_dict, updates_dict)
         cell_dict["lifecycle"]["last_updated_at"] = datetime.now(UTC).isoformat()
         updated_cell = deserialize_cell(cell_dict)
         # Enforced on the merged result and before the write, so a PATCH cannot
@@ -306,12 +306,3 @@ class ChromaAdapter(StorageAdapter):
             embeddings=self._embed([cell.content.text]),
             metadatas=[{_CELL_JSON_KEY: json.dumps(cell_data)}],
         )
-
-    @staticmethod
-    def _apply_updates(target: dict, updates: dict, _root: bool = True) -> None:
-        """Kept as a thin delegate so the call site reads the same as before.
-
-        The merge rule itself is shared with every other backend
-        (`amp_server.storage.records.apply_updates`).
-        """
-        apply_updates(target, updates)

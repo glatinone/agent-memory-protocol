@@ -37,6 +37,15 @@ print(memories[0]["content"]["text"])
 
 ---
 
+## Reading one cell
+
+```python
+cell = client.get_memory("mem_01J5A3B7K9M2N4P6Q8R0S1T3V5")
+```
+
+Reading is what resets a cell's decay clock server-side: the response carries the
+bumped `scoring.access_count` and `lifecycle.last_accessed_at`.
+
 ## Paging
 
 `recall` and `list_memories` take an `offset`, which skips that many results the

@@ -23,6 +23,56 @@ const OWNER = `node-sdk-test-user-${Date.now()}`;
 // being collected, before any hook runs, and would always skip.
 let serverUp = false;
 
+describe("getMemory", () => {
+  test("reads one cell by id", async () => {
+    const calls = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = async (url, init) => {
+      calls.push({ method: init?.method ?? "GET", url: String(url) });
+      return new Response(JSON.stringify({ id: "mem_123" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+    try {
+      const client = new AMPClient("http://localhost:8000", "agent-1");
+      const cell = await client.getMemory("mem_123");
+      assert.equal(cell.id, "mem_123");
+    } finally {
+      globalThis.fetch = original;
+    }
+
+    assert.equal(calls[0].method, "GET");
+    assert.equal(new URL(calls[0].url).pathname, "/amp/v1/memories/mem_123");
+  });
+});
+
+describe("forget", () => {
+  test("archives before deleting, and does not read the cell first", async () => {
+    // The protocol only permits `archived -> deleted`. Reading the cell first was
+    // only ever to echo `created_at` back, which a lifecycle update no longer
+    // needs; a client that gets this order wrong is refused by a real server.
+    const calls = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = async (url, init) => {
+      calls.push({ method: init?.method ?? "GET", url: String(url), body: init?.body });
+      return new Response(null, { status: 204 });
+    };
+    try {
+      const client = new AMPClient("http://localhost:8000", "agent-1");
+      await client.forget("mem_123");
+    } finally {
+      globalThis.fetch = original;
+    }
+
+    assert.deepEqual(
+      calls.map((c) => c.method),
+      ["PATCH", "DELETE"],
+    );
+    assert.deepEqual(JSON.parse(calls[0].body), { lifecycle: { status: "archived" } });
+  });
+});
+
 describe("Paging", () => {
   // These capture the request the client actually makes. Asserting on a body
   // object built inside the test would prove nothing about the client.

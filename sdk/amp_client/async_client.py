@@ -138,9 +138,45 @@ class AsyncAMPClient:
             self._raise_amp_error(resp)
         return resp.json().get("results", [])
 
-    async def forget(self, memory_id: str) -> bool:
+    async def get_memory(self, memory_id: str) -> dict[str, Any]:
+        """Retrieve one Memory Cell by ID.
+
+        Reading resets the cell's decay clock server-side: the response carries
+        the bumped `access_count` and `last_accessed_at`.
+        """
         async with self._get_client() as client:
             try:
+                resp = await client.get(
+                    f"{self.server_url}/memories/{memory_id}",
+                    headers=self.identity_headers(),
+                )
+            except httpx.HTTPError as exc:
+                raise AMPError(f"HTTP request failed: {exc}") from exc
+
+        if not (200 <= resp.status_code < 300):
+            self._raise_amp_error(resp)
+        return resp.json()
+
+    async def forget(self, memory_id: str) -> bool:
+        """Archive then delete a Memory Cell.
+
+        The protocol only permits `archived -> deleted`, so the PATCH comes first.
+        This client used to DELETE directly, which the server refuses with
+        `409 INVALID_TRANSITION` for every cell that is not already archived - that
+        is, for every cell a caller actually wants to forget. The test that
+        covered it mocked the DELETE and never modelled the precondition, so it
+        passed while the method could not work against a real server.
+        """
+        async with self._get_client() as client:
+            try:
+                archived = await client.patch(
+                    f"{self.server_url}/memories/{memory_id}",
+                    json={"lifecycle": {"status": "archived"}},
+                    headers=self.identity_headers(),
+                )
+                if not (200 <= archived.status_code < 300):
+                    self._raise_amp_error(archived)
+
                 resp = await client.delete(
                     f"{self.server_url}/memories/{memory_id}",
                     headers=self.identity_headers(),

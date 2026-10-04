@@ -155,6 +155,7 @@ def _exercise_every_method(recorder) -> None:
     client.remember("a preference", "user-1")
     client.recall("a preference", "user-1")
     client.list_memories("user-1")
+    client.get_memory("mem_01J5A3B7K9M2N4P6Q8R0S1T3V5")
     client.forget("mem_01J5A3B7K9M2N4P6Q8R0S1T3V5")
     client.health()
 
@@ -232,12 +233,14 @@ def test_the_create_body_carries_the_contracts_required_fields(recorder):
     assert required <= set(body), f"create body is missing {required - set(body)}"
 
 
-def test_the_archiving_patch_sends_a_complete_lifecycle(recorder):
-    """`forget` archives first; the lifecycle schema requires created_at.
+def test_the_archiving_patch_maysend_a_partial_lifecycle(recorder):
+    """`forget` archives first, and a status alone is what the contract asks for.
 
-    `MemoryCellUpdate` itself has no required fields, so the check that carries
-    weight is on the nested object the server validates - which is exactly why
-    the client does a GET before its PATCH.
+    This test used to assert the opposite - that the client echoed `created_at`
+    because the lifecycle model required it on write, which is why `forget` did a
+    GET first. The server's update model now omits the field, so the assertion
+    flips: the contract must not require it and the client must not send it. If
+    the server ever requires it again, this is where the SDK finds out.
     """
     client, adapter = recorder
     client.forget("mem_01J5A3B7K9M2N4P6Q8R0S1T3V5")
@@ -250,17 +253,18 @@ def test_the_archiving_patch_sends_a_complete_lifecycle(recorder):
     lifecycle_model = _resolve_ref(
         contract, _ref_of(contract, update_model["properties"]["lifecycle"])
     )
-    required = set(lifecycle_model["required"])
-    assert "created_at" in required, "the fixture assumption changed"
+    required = set(lifecycle_model.get("required", []))
+    assert required == set(), f"the update model requires {required}"
+    assert "created_at" not in lifecycle_model["properties"], (
+        "created_at is the anchor the decay formula measures from; it must not be "
+        "writable through an update"
+    )
 
     body = next(
         json.loads(raw) for method, _, raw in adapter.calls if method == "PATCH" and raw
     )
-    assert "lifecycle" in body, body
-    missing = required - set(body["lifecycle"])
-    assert not missing, (
-        f"the archiving PATCH omits {missing}, which the server requires"
-    )
+    assert body["lifecycle"]["status"] == "archived"
+    assert "created_at" not in body["lifecycle"]
 
 
 def test_every_request_sends_the_agent_identity_header():

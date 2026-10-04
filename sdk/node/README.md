@@ -64,6 +64,11 @@ Semantic search. Options: `limit` (default 5), `includeStale` (default false),
 `offset` (default 0). Returns an array of matching cells, ranked by blended
 similarity and decay score.
 
+### `getMemory(memoryId)`
+
+Retrieves one cell by id. Reading resets the cell's decay clock server-side: the
+response carries the bumped `scoring.accessCount` and `lifecycle.lastAccessedAt`.
+
 ### `listMemories(ownerId, options?)`
 
 Lists cells by owner without semantic search. Options: `type`, `limit` (default

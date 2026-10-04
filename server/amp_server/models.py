@@ -65,6 +65,31 @@ class MemoryLifecycle(BaseModel):
     status: LifecycleStatus = LifecycleStatus.ACTIVE
 
 
+class MemoryLifecycleUpdate(BaseModel):
+    """The part of `lifecycle` a client may change.
+
+    `created_at` is absent rather than merely optional, and that difference is the
+    point: the server sets it at create time and the decay formula measures from
+    it, so a client able to rewrite it could reset a cell's apparent age and
+    defeat the same decay the lifecycle engine applies. `docs/api-reference.md`
+    already documented it as unpatchable; the schema now enforces that.
+
+    An update is merged into the stored lifecycle, so a field the client does not
+    send is a field that keeps its value. That is what makes
+    `PATCH {"lifecycle": {"status": "archived"}}` enough to archive a cell - before
+    this, `created_at` was required by the shared model, so every client had to
+    GET the cell first and echo the timestamp back. The SDKs did exactly that.
+
+    The other timestamps stay writable because echoing them is harmless: the
+    server stamps `last_updated_at` on every write regardless.
+    """
+
+    last_accessed_at: datetime | None = None
+    last_updated_at: datetime | None = None
+    expires_at: datetime | None = None
+    status: LifecycleStatus | None = None
+
+
 class MemoryScoring(BaseModel):
     importance: float = Field(default=0.5, ge=0.0, le=1.0)
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
@@ -155,7 +180,7 @@ class MemoryCellUpdate(BaseModel):
     scoring: MemoryScoring | None = None
     access_policy: MemoryAccessPolicy | None = None
     provenance: MemoryProvenance | None = None
-    lifecycle: MemoryLifecycle | None = None
+    lifecycle: MemoryLifecycleUpdate | None = None
 
 
 # --- Search Models ---

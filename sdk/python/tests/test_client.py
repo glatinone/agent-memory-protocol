@@ -104,46 +104,67 @@ def test_recall_success(mock_request):
 
 
 @patch("requests.Session.request")
-def test_forget_success(mock_request):
-    # Mock sequence: GET, PATCH, DELETE
-    mock_get = MagicMock()
-    mock_get.status_code = 200
-    mock_get.json.return_value = {
+def test_get_memory_reads_one_cell(mock_request):
+    """Reading is what resets a cell's decay clock, so a client needs it."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
         "id": "mem_123",
-        "lifecycle": {"created_at": "2026-06-12T10:00:00Z", "status": "active"},
+        "scoring": {"access_count": 4},
     }
+    mock_request.return_value = mock_response
 
+    cell = AMPClient("http://localhost:8000", "agent-1").get_memory("mem_123")
+
+    assert cell["scoring"]["access_count"] == 4
+    args, kwargs = mock_request.call_args
+    assert args[0] == "GET"
+    assert args[1] == "http://localhost:8000/amp/v1/memories/mem_123"
+    assert kwargs["headers"]["X-AMP-Agent-ID"] == "agent-1"
+
+
+@patch("requests.Session.request")
+def test_forget_archives_then_deletes_in_two_requests(mock_request):
+    """The protocol only permits `archived -> deleted`, in that order.
+
+    Two requests, not three: a lifecycle update merges into the stored cell, so
+    the client no longer has to read the cell first to echo its `created_at` back.
+    """
     mock_patch = MagicMock()
     mock_patch.status_code = 200
     mock_patch.json.return_value = {}
-
     mock_delete = MagicMock()
     mock_delete.status_code = 204
-
-    mock_request.side_effect = [mock_get, mock_patch, mock_delete]
+    mock_request.side_effect = [mock_patch, mock_delete]
 
     client = AMPClient("http://localhost:8000", "test_agent")
-    res = client.forget("mem_123")
+    assert client.forget("mem_123") is True
 
-    assert res is True
-    assert mock_request.call_count == 3
+    assert mock_request.call_count == 2
+    methods = [call.args[0] for call in mock_request.call_args_list]
+    assert methods == ["PATCH", "DELETE"], methods
 
-    # Check GET call
-    args_get, _ = mock_request.call_args_list[0]
-    assert args_get[0] == "GET"
-    assert args_get[1] == "http://localhost:8000/amp/v1/memories/mem_123"
-
-    # Check PATCH call
-    args_patch, kwargs_patch = mock_request.call_args_list[1]
-    assert args_patch[0] == "PATCH"
+    args_patch, kwargs_patch = mock_request.call_args_list[0]
     assert args_patch[1] == "http://localhost:8000/amp/v1/memories/mem_123"
-    assert kwargs_patch["json"]["lifecycle"]["status"] == "archived"
-    assert kwargs_patch["json"]["lifecycle"]["created_at"] == "2026-06-12T10:00:00Z"
+    assert kwargs_patch["json"] == {"lifecycle": {"status": "archived"}}
 
-    # Check DELETE call
-    args_del, _ = mock_request.call_args_list[2]
-    assert args_del[0] == "DELETE"
-    assert args_del[1] == "http://localhost:8000/amp/v1/memories/mem_123"
+
+@patch("requests.Session.request")
+def test_forget_does_not_read_the_cell_first(mock_request):
+    """The removed round-trip, pinned so it does not come back.
+
+    The GET existed only to satisfy a server-side validation that required
+    `created_at` on every lifecycle update.
+    """
+    mock_patch = MagicMock()
+    mock_patch.status_code = 200
+    mock_delete = MagicMock()
+    mock_delete.status_code = 204
+    mock_request.side_effect = [mock_patch, mock_delete]
+
+    AMPClient("http://localhost:8000", "test_agent").forget("mem_123")
+
+    assert "GET" not in [call.args[0] for call in mock_request.call_args_list]
 
 
 @patch("requests.Session.request")

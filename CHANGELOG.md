@@ -193,6 +193,31 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   auth as future work - they are in this release. The launch checklist records the
   re-check, since catching exactly this is what it is for.
 
+- **A status-only lifecycle update is enough to archive a cell**
+  (`MemoryLifecycleUpdate`). `PATCH {"lifecycle": {"status": "archived"}}` used to
+  be rejected: `created_at` was required by the lifecycle model shared with the
+  create path, so every client had to GET the cell first and echo the timestamp
+  back. Both SDKs did exactly that, and the API reference documented `created_at`
+  as unpatchable while the schema made it both mandatory and mutable. The field is
+  now absent from the update model - not optional, absent, so a generated client
+  will not offer it - and the storage rule refuses it on the raw dict path too.
+  Two fewer requests in `forget`, and a cell's age can no longer be reset by a
+  client, which is what the decay formula measures from.
+- **`AsyncAMPClient.forget()` archived nothing.** It went straight to DELETE, which
+  the protocol permits only from `archived` - so it was refused with `409` for
+  every cell a caller would actually want to forget. Its test mocked the DELETE and
+  never modelled the precondition, so it passed while the method could not work
+  against a real server. Fixed, and the test now asserts the order.
+- **Both SDKs gained `get_memory` / `getMemory`.** Neither could read a single
+  cell: the GET route was only ever reached as a side effect of `forget`'s removed
+  round-trip, which is how the contract test noticed. Reading is what resets a
+  cell's decay clock, so a client without it cannot do the one thing the protocol
+  documents about reads.
+- **`tests/test_memory_crud.py` no longer depends on another test file.** Its HTTP
+  tests reached the app through whatever storage a *previous file* had left on the
+  module, so the file only passed as part of the whole suite. An autouse fixture
+  gives each test its own state.
+
 ### Changed
 - **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a
   conflict with `{"detail": ...}` while `DELETE` answered with

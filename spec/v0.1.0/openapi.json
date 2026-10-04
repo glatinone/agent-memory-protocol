@@ -169,7 +169,7 @@
           "lifecycle": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/MemoryLifecycle"
+                "$ref": "#/components/schemas/MemoryLifecycleUpdate"
               },
               {
                 "type": "null"
@@ -257,13 +257,9 @@
         "title": "MemoryIdentity",
         "type": "object"
       },
-      "MemoryLifecycle": {
+      "MemoryLifecycleUpdate": {
+        "description": "The part of `lifecycle` a client may change.\n\n`created_at` is absent rather than merely optional, and that difference is the\npoint: the server sets it at create time and the decay formula measures from\nit, so a client able to rewrite it could reset a cell's apparent age and\ndefeat the same decay the lifecycle engine applies. `docs/api-reference.md`\nalready documented it as unpatchable; the schema now enforces that.\n\nAn update is merged into the stored lifecycle, so a field the client does not\nsend is a field that keeps its value. That is what makes\n`PATCH {\"lifecycle\": {\"status\": \"archived\"}}` enough to archive a cell - before\nthis, `created_at` was required by the shared model, so every client had to\nGET the cell first and echo the timestamp back. The SDKs did exactly that.\n\nThe other timestamps stay writable because echoing them is harmless: the\nserver stamps `last_updated_at` on every write regardless.",
         "properties": {
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
           "expires_at": {
             "anyOf": [
               {
@@ -301,14 +297,17 @@
             "title": "Last Updated At"
           },
           "status": {
-            "$ref": "#/components/schemas/LifecycleStatus",
-            "default": "active"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LifecycleStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
-        "required": [
-          "created_at"
-        ],
-        "title": "MemoryLifecycle",
+        "title": "MemoryLifecycleUpdate",
         "type": "object"
       },
       "MemoryProvenance": {

@@ -6,7 +6,12 @@ import logging
 import math
 from datetime import UTC, datetime
 
-from amp_server.models import LifecycleStatus, MemoryCell, MemoryCellUpdate
+from amp_server.models import (
+    LifecycleStatus,
+    MemoryCell,
+    MemoryCellUpdate,
+    MemoryLifecycleUpdate,
+)
 from amp_server.retention import RetentionWindowError, retention_elapsed
 from amp_server.storage.base import InvalidTransitionError, StorageAdapter
 
@@ -145,8 +150,12 @@ class LifecycleEngine:
             new_status = await self.evaluate_cell(cell)
             if new_status != cell.lifecycle.status:
                 old_status = cell.lifecycle.status
+                # Only the status: a partial lifecycle update merges into the
+                # stored one, so there is no reason to send back a snapshot of the
+                # timestamps the engine read - and doing so could write a stale
+                # `last_accessed_at` over a newer one a GET had just set.
                 update = MemoryCellUpdate(
-                    lifecycle=cell.lifecycle.model_copy(update={"status": new_status})
+                    lifecycle=MemoryLifecycleUpdate(status=new_status)
                 )
                 await self._storage.update(cell.id, update)
                 key = f"{old_status.value}_to_{new_status.value}"

@@ -21,6 +21,29 @@ from amp_server.retention import RetentionWindowError
 from amp_server.storage.base import InvalidTransitionError, MemoryNotFoundError
 from amp_server.storage.chroma import ChromaAdapter
 
+
+@pytest.fixture(autouse=True)
+def _app_state():
+    """Give every test in this file its own app state.
+
+    The HTTP tests here used to reach the app through whatever storage a *previous
+    test file* had left on the module. That held while the whole suite ran in one
+    process and broke the moment this file ran alone - which is how CI runs it in
+    the Hermes repository this project borrows its test discipline from, and how
+    anyone runs a single file while working on it. A test that only passes in the
+    company of another test is not measuring what it claims to.
+    """
+    import amp_server.main as main_mod
+    from amp_server.lifecycle import LifecycleEngine
+    from amp_server.ratelimit import ScoringPatchLimit, ScoringPatchLimiter
+
+    main_mod._storage = ChromaAdapter(collection_name=f"test_{uuid.uuid4().hex[:12]}")
+    main_mod._lifecycle = LifecycleEngine(main_mod._storage)
+    main_mod._api_key_store = None
+    main_mod._scoring_limit = ScoringPatchLimit()
+    main_mod._scoring_limiter = ScoringPatchLimiter(main_mod._scoring_limit)
+
+
 # ---------------------------------------------------------------------------
 # Save & Get
 # ---------------------------------------------------------------------------
@@ -387,6 +410,78 @@ async def test_get_without_agent_id_header_returns_401():
 
     assert resp.status_code == 401
     assert resp.json()["error"]["code"] == "MISSING_AGENT_ID"
+
+
+@pytest.mark.asyncio
+async def test_a_status_only_patch_archives_and_keeps_created_at():
+    """The step every client had to take, and no longer has to.
+
+    `PATCH {"lifecycle": {"status": "archived"}}` used to be rejected, because
+    `created_at` was required by the lifecycle model shared with the create path -
+    so a client had to GET the cell first and send the timestamp back. Both SDKs
+    did exactly that, in `forget`. The creation time is now absent from the update
+    model and immutable in the storage rule.
+    """
+    from amp_server.main import app
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        create = await client.post(
+            "/amp/v1/memories", headers=_HEADERS, json=_minimal_body("to archive")
+        )
+        memory_id = create.json()["id"]
+        created_at = create.json()["lifecycle"]["created_at"]
+
+        archive = await client.patch(
+            f"/amp/v1/memories/{memory_id}",
+            headers=_HEADERS,
+            json={"lifecycle": {"status": "archived"}},
+        )
+
+        # And the DELETE that depends on it still works with one request each.
+        delete = await client.delete(f"/amp/v1/memories/{memory_id}", headers=_HEADERS)
+
+    assert archive.status_code == 200
+    assert archive.json()["lifecycle"]["status"] == "archived"
+    assert archive.json()["lifecycle"]["created_at"] == created_at
+    assert delete.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_a_patch_cannot_rewrite_created_at():
+    """`docs/api-reference.md` promised this; the schema and the merge now enforce it.
+
+    The decay formula measures a cell's age from `created_at`, so a client able to
+    rewrite it could reset that age and defeat the decay the lifecycle is built on.
+    An extra field in a request body is ignored rather than applied.
+    """
+    from amp_server.main import app
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        create = await client.post(
+            "/amp/v1/memories", headers=_HEADERS, json=_minimal_body("aged")
+        )
+        memory_id = create.json()["id"]
+        created_at = create.json()["lifecycle"]["created_at"]
+
+        patch = await client.patch(
+            f"/amp/v1/memories/{memory_id}",
+            headers=_HEADERS,
+            json={
+                "lifecycle": {
+                    "created_at": "2020-01-01T00:00:00Z",
+                    "status": "archived",
+                }
+            },
+        )
+
+    assert patch.status_code == 200
+    assert patch.json()["lifecycle"]["created_at"] == created_at
+    assert patch.json()["lifecycle"]["created_at"] != "2020-01-01T00:00:00Z"
+    assert patch.json()["lifecycle"]["status"] == "archived"
 
 
 @pytest.mark.asyncio

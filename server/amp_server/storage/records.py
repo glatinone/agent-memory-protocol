@@ -19,8 +19,24 @@ from typing import Any
 
 from amp_server.models import MemoryCell
 
-# Fields a PATCH may never change, per `MemoryCellUpdate`'s own docstring.
-IMMUTABLE_KEYS = frozenset({"id", "type", "amp_version", "identity"})
+#: Key paths a partial update may never change, per `MemoryCellUpdate`'s own
+#: docstring and `docs/api-reference.md`.
+#:
+#: Paths rather than top-level names, because the rule is about a field and not
+#: its depth: `lifecycle.created_at` is the anchor the decay formula measures a
+#: cell's age from, so an update able to rewrite it could reset that age and
+#: defeat the decay the whole lifecycle is built on. The update model omits the
+#: field, and this is the same rule for the raw dict path the server uses
+#: internally, where no model sees the update.
+IMMUTABLE_PATHS = frozenset(
+    {
+        ("id",),
+        ("type",),
+        ("amp_version",),
+        ("identity",),
+        ("lifecycle", "created_at"),
+    }
+)
 
 
 def serialize_cell(cell: MemoryCell) -> dict[str, Any]:
@@ -34,13 +50,13 @@ def deserialize_cell(data: dict[str, Any]) -> MemoryCell:
 
 
 def apply_updates(
-    target: dict[str, Any], updates: dict[str, Any], _root: bool = True
+    target: dict[str, Any], updates: dict[str, Any], _path: tuple[str, ...] = ()
 ) -> None:
-    """Recursively merge `updates` into `target`, blocking immutable top-level keys."""
+    """Recursively merge `updates` into `target`, skipping immutable key paths."""
     for key, value in updates.items():
-        if _root and key in IMMUTABLE_KEYS:
+        if (*_path, key) in IMMUTABLE_PATHS:
             continue
         if isinstance(value, dict) and isinstance(target.get(key), dict):
-            apply_updates(target[key], value, _root=False)
+            apply_updates(target[key], value, _path=(*_path, key))
         else:
             target[key] = value

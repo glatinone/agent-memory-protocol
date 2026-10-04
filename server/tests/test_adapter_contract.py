@@ -23,6 +23,7 @@ from amp_server.embeddings import EmbeddingProvider
 from amp_server.models import (
     LifecycleStatus,
     MemoryCellUpdate,
+    MemoryLifecycleUpdate,
     SearchRequest,
 )
 from amp_server.retention import RETENTION_DAYS, RetentionWindowError
@@ -164,11 +165,10 @@ async def test_the_archive_then_delete_flow_works(adapter):
     cell = make_cell(owner_id=_OWNER, created_by=_CREATOR)
     await adapter.save(cell)
 
-    archived = await adapter.update(
-        cell.id,
-        {"lifecycle": {"created_at": cell.lifecycle.created_at, "status": "archived"}},
-    )
+    # Status only: no need to echo the rest of the lifecycle back.
+    archived = await adapter.update(cell.id, {"lifecycle": {"status": "archived"}})
     assert archived.lifecycle.status is LifecycleStatus.ARCHIVED
+    assert archived.lifecycle.created_at == cell.lifecycle.created_at
 
     await adapter.mark_deleted(cell.id)
 
@@ -195,15 +195,7 @@ async def test_a_write_cannot_reach_deleted(adapter):
     await adapter.save(cell)
 
     with pytest.raises(InvalidTransitionError):
-        await adapter.update(
-            cell.id,
-            {
-                "lifecycle": {
-                    "created_at": cell.lifecycle.created_at,
-                    "status": "deleted",
-                }
-            },
-        )
+        await adapter.update(cell.id, {"lifecycle": {"status": "deleted"}})
 
 
 @pytest.mark.asyncio
@@ -214,15 +206,33 @@ async def test_an_archived_cell_cannot_return_to_active(adapter):
     await adapter.save(cell)
 
     with pytest.raises(InvalidTransitionError):
-        await adapter.update(
-            cell.id,
-            {
-                "lifecycle": {
-                    "created_at": cell.lifecycle.created_at,
-                    "status": "active",
-                }
-            },
-        )
+        await adapter.update(cell.id, {"lifecycle": {"status": "active"}})
+
+
+@pytest.mark.asyncio
+async def test_created_at_survives_a_patch_that_tries_to_change_it(adapter):
+    """The decay formula measures from `created_at`; rewriting it resets a cell's age.
+
+    `docs/api-reference.md` documented it as unpatchable while the shared model
+    required it on every lifecycle update - so it was both mandatory and mutable.
+    It is now absent from the update model, and an extra field in a request body is
+    ignored rather than applied.
+    """
+    original = make_cell(owner_id=_OWNER, created_by=_CREATOR, text="aged")
+    await adapter.save(original)
+
+    updated = await adapter.update(
+        original.id,
+        {
+            "lifecycle": {
+                "created_at": "2020-01-01T00:00:00Z",
+                "status": "archived",
+            }
+        },
+    )
+
+    assert updated.lifecycle.status is LifecycleStatus.ARCHIVED
+    assert updated.lifecycle.created_at == original.lifecycle.created_at
 
 
 @pytest.mark.asyncio
@@ -654,7 +664,7 @@ async def test_update_accepts_a_model_as_well_as_a_dict(adapter):
     await adapter.save(cell)
 
     updated = await adapter.update(
-        cell.id, MemoryCellUpdate(lifecycle=cell.lifecycle.model_copy())
+        cell.id, MemoryCellUpdate(lifecycle=MemoryLifecycleUpdate())
     )
 
     assert updated.content.text == "before"

@@ -162,8 +162,23 @@ class AMPClient:
         data = response.json()
         return data.get("results", [])
 
+    def get_memory(self, memory_id: str) -> dict[str, Any]:
+        """Retrieve one Memory Cell by ID.
+
+        Reading is what resets a cell's decay clock server-side: the response
+        carries the bumped `access_count` and `last_accessed_at`. Neither SDK had
+        a way to do this - `forget` reached the route as a side effect of the
+        round-trip it no longer needs, which is why the contract test noticed.
+        """
+        return self._request("GET", f"/memories/{memory_id}").json()
+
     def forget(self, memory_id: str) -> bool:
         """Archive then delete a Memory Cell.
+
+        Two requests, in this order, because the protocol only permits
+        `archived -> deleted`. No read first: a lifecycle update merges into the
+        stored cell, so the status alone is enough and `created_at` cannot be
+        changed by a client anyway.
 
         Args:
             memory_id: The ID of the memory cell to forget.
@@ -171,21 +186,11 @@ class AMPClient:
         Returns:
             True if the deletion status code is 204.
         """
-        # GET the memory cell first to obtain the original created_at timestamp
-        # to satisfy server-side validation of MemoryLifecycle in PATCH body.
-        cell = self._request("GET", f"/memories/{memory_id}").json()
-        created_at = cell["lifecycle"]["created_at"]
-
-        # PATCH to archived status
-        patch_body = {
-            "lifecycle": {
-                "created_at": created_at,
-                "status": "archived",
-            }
-        }
-        self._request("PATCH", f"/memories/{memory_id}", json=patch_body)
-
-        # DELETE the memory cell
+        self._request(
+            "PATCH",
+            f"/memories/{memory_id}",
+            json={"lifecycle": {"status": "archived"}},
+        )
         response = self._request("DELETE", f"/memories/{memory_id}")
         return response.status_code == 204
 
