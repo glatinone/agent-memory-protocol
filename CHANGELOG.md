@@ -165,6 +165,18 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `AMP_SCORING_PATCH_WINDOW_SECONDS`, disabled with `0`, and advertised at
   `GET /spec` as `scoring_patch_limit` (`null` when off). Counters are per process.
 
+- **Search pages, like the listing endpoints.** `POST /memories/search` gained
+  `offset`, and both endpoints now share one page ceiling: `MAX_PAGE_SIZE` lives
+  beside the request models because it is part of the request contract, and two
+  hard-coded `100`s - one in `SearchRequest`, one in the listing routes - is how a
+  client ends up told one ceiling by one endpoint and refused by the next.
+  `offset` windows the results the caller may *read*, the same measure the listing
+  endpoints use, so a page means the same thing wherever it comes from. The
+  response gained `has_more` and echoes `offset` / `limit`, since a short page and
+  a final page are indistinguishable without one of them.
+- **A stray `total` in the search example** in `docs/api-reference.md` - left from
+  the field's rename, and still documenting the count that was never computed.
+
 ### Changed
 - **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a
   conflict with `{"detail": ...}` while `DELETE` answered with

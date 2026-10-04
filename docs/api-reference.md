@@ -539,7 +539,8 @@ curl -X POST http://localhost:8765/amp/v1/memories/search \
 | `owner_id` | string | Yes | Only return cells belonging to this owner |
 | `types` | string[] | No | Filter to specific memory types. Omit to search all types |
 | `status` | string[] | No | Lifecycle statuses to include (default: `["active"]`) |
-| `limit` | int [1-100] | No | Maximum number of results to return (default: `10`) |
+| `limit` | int [1-100] | No | Maximum number of results in this page (default: `10`, ceiling `max_page_size` from [`GET /spec`](#get-spec)). A larger value is refused with `422`, not clamped |
+| `offset` | int ≥ 0 | No | Skip this many results the caller may read (default: `0`). Pages the ranked results, so page 2 is page 2 of what this caller can see |
 | `include_stale` | bool | No | Shorthand to add `"stale"` to the status filter (default: `false`) |
 
 **Response `200 OK`**
@@ -589,7 +590,10 @@ curl -X POST http://localhost:8765/amp/v1/memories/search \
       }
     }
   ],
-  "total": 1,
+  "returned": 1,
+  "has_more": true,
+  "offset": 0,
+  "limit": 5,
   "query": "what programming languages does the user know?"
 }
 ```
@@ -600,13 +604,15 @@ curl -X POST http://localhost:8765/amp/v1/memories/search \
 |-------|-------------|
 | `results` | Array of matching `MemoryCell` objects, ordered by relevance |
 | `returned` | The number of cells in this page, bounded by the request's `limit`. It is not a count of everything that matched - the server does not compute one. |
+| `has_more` | Whether another page holds anything. `false` means this was the last one, which `returned` alone cannot say: a short page and a final page look identical |
+| `offset`, `limit` | The window this page used, echoed back so a client can advance without keeping its own count |
 | `query` | The query string echoed back |
 
 **Error responses**
 
 | Status | `error.code` | Cause |
 |--------|-------------|-------|
-| `422` | `VALIDATION_ERROR` | Missing `query` or `owner_id`, or `limit` out of range |
+| `422` | `VALIDATION_ERROR` | Missing `query` or `owner_id`, or `limit` / `offset` out of range |
 
 ---
 

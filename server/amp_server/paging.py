@@ -15,11 +15,16 @@ answers whether the next page holds anything.
 from __future__ import annotations
 
 from amp_server.access_control import check_read_access
-from amp_server.models import LifecycleStatus, MemoryCell, MemoryType
+from amp_server.models import (
+    MAX_PAGE_SIZE,
+    LifecycleStatus,
+    MemoryCell,
+    MemoryType,
+)
 from amp_server.storage.base import StorageAdapter
 
-#: The most cells one request may ask for.
-MAX_PAGE_SIZE = 100
+__all__ = ["DEFAULT_PAGE_SIZE", "MAX_PAGE_SIZE", "SCAN_CEILING", "readable_page"]
+
 #: The page size when the caller does not choose one.
 DEFAULT_PAGE_SIZE = 20
 #: How many candidates one request may examine. A filter that matches almost

@@ -161,6 +161,13 @@ class MemoryCellUpdate(BaseModel):
 # --- Search Models ---
 
 
+#: The largest page any endpoint returns. It lives beside the request models
+#: because it is part of the request contract: the search model bounds `limit`
+#: with it and the listing routes do too, so no endpoint can promise a client one
+#: ceiling while the next refuses it. Two hard-coded 100s is how that drifts.
+MAX_PAGE_SIZE = 100
+
+
 class SearchRequest(BaseModel):
     query: str
     owner_id: str | None = None
@@ -168,22 +175,30 @@ class SearchRequest(BaseModel):
     status: list[LifecycleStatus] = Field(
         default_factory=lambda: [LifecycleStatus.ACTIVE]
     )
-    limit: int = Field(default=10, ge=1, le=100)
+    # Default 10 rather than the listing endpoints' 20: that is what search has
+    # always used, and a default is not worth breaking clients over.
+    limit: int = Field(default=10, ge=1, le=MAX_PAGE_SIZE)
+    #: Skips this many results *the caller may read*, so page 2 is page 2 of the
+    #: caller's own view, exactly as `offset` on the listing endpoints is.
+    offset: int = Field(default=0, ge=0)
     include_stale: bool = False
 
 
 class SearchResponse(BaseModel):
     """Search results for one page.
 
-    `returned` is the size of this page, not the number of cells that matched:
-    the field was called `total` and documented as "may exceed `limit`", which it
-    never could, because the value is the length of the list beside it. A name
-    that promises a count the server does not compute is worse than no count.
-    Paging a search is a v0.2 question; the adapter returns one page.
+    The fields say what the page is and what it is not. `returned` is the size of
+    this page - the field was called `total` and documented as "may exceed
+    `limit`", which it never could, because the value was the length of the list
+    beside it. `has_more` is the honest answer to "is there more", and `offset` /
+    `limit` echo the window so a client can page without keeping its own count.
     """
 
     results: list[MemoryCell]
     returned: int
+    has_more: bool
+    offset: int
+    limit: int
     query: str
 
 

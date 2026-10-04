@@ -238,7 +238,13 @@ class ChromaAdapter(StorageAdapter):
             scored.append((combined_score(similarity, cell), cell))
 
         scored.sort(key=lambda pair: pair[0], reverse=True)
-        return [cell for _, cell in scored[: request.limit]]
+        # `offset` windows the cells the caller may read, the same measure
+        # `query` uses, so a page means the same thing on both endpoints and both
+        # backends. The access filter above has already run, so the window counts
+        # readable matches rather than candidates.
+        return [
+            cell for _, cell in scored[request.offset : request.offset + request.limit]
+        ]
 
     async def query(
         self,

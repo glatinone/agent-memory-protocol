@@ -431,6 +431,61 @@ async def test_search_can_include_stale_cells(adapter):
 
 
 @pytest.mark.asyncio
+async def test_search_windows_the_ranked_result(adapter):
+    """`offset` pages the *readable* ranked matches, on every backend.
+
+    Windows must mean the same thing here as in `query`: a client that pages one
+    backend and then another has to see the same cells in the same order.
+    """
+    ids = []
+    for index in range(4):
+        cell = make_cell(owner_id=_OWNER, created_by=_CREATOR, text=f"invoice {index}")
+        await adapter.save(cell)
+        ids.append(cell.id)
+
+    request = SearchRequest(query="invoice", owner_id=_OWNER, limit=2)
+    first = await adapter.search(request, agent_id=_OWNER)
+
+    request = SearchRequest(query="invoice", owner_id=_OWNER, limit=2, offset=2)
+    second = await adapter.search(request, agent_id=_OWNER)
+
+    request = SearchRequest(query="invoice", owner_id=_OWNER, limit=2, offset=99)
+    beyond = await adapter.search(request, agent_id=_OWNER)
+
+    assert [len(first), len(second)] == [2, 2]
+    assert not ({c.id for c in first} & {c.id for c in second})
+    assert {c.id for c in first} | {c.id for c in second} == set(ids)
+    assert beyond == []
+
+
+@pytest.mark.asyncio
+async def test_search_windows_after_the_access_filter(adapter):
+    """A page counts cells the caller may read, not cells ranked ahead of them."""
+    await adapter.save(
+        make_cell(
+            owner_id=_OWNER,
+            created_by=_CREATOR,
+            text="invoice for someone else",
+            readable_by=["agent_elsewhere*"],
+        )
+    )
+    for index in range(2):
+        await adapter.save(
+            make_cell(
+                owner_id=_OWNER,
+                created_by=_CREATOR,
+                text=f"invoice {index}",
+                readable_by=["agent_reader*"],
+            )
+        )
+
+    request = SearchRequest(query="invoice", owner_id=_OWNER, limit=2)
+    results = await adapter.search(request, agent_id="agent_reader_1")
+
+    assert len(results) == 2, "the unreadable cell was counted against the limit"
+
+
+@pytest.mark.asyncio
 async def test_search_honours_the_limit(adapter):
     for index in range(5):
         await adapter.save(

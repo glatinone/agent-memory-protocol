@@ -14,10 +14,9 @@ import uuid
 
 import pytest
 from conftest import make_cell
-from httpx import ASGITransport, AsyncClient
+from httpx import ASGITransport, AsyncClient, Response
 
-from amp_server.models import LifecycleStatus
-from amp_server.paging import MAX_PAGE_SIZE
+from amp_server.models import MAX_PAGE_SIZE, LifecycleStatus
 
 _OWNER = "user-paging"
 _READER = "agent-paging-reader"
@@ -222,3 +221,112 @@ async def test_spec_advertises_the_page_ceiling():
 
     assert capabilities["max_page_size"] == MAX_PAGE_SIZE
     assert MAX_PAGE_SIZE >= 1
+
+
+# ---------------------------------------------------------------------------
+# Search pages the same way
+# ---------------------------------------------------------------------------
+
+
+async def _search(payload: dict) -> Response:
+    async with await _client() as client:
+        return await client.post(
+            "/amp/v1/memories/search", json=payload, headers=_headers()
+        )
+
+
+def _query(**overrides: object) -> dict:
+    payload: dict[str, object] = {"query": "page cell", "owner_id": _OWNER}
+    payload.update(overrides)
+    return payload
+
+
+@pytest.mark.asyncio
+async def test_search_pages_with_offset_and_reports_has_more():
+    _install_app()
+    await _seed(3, readable_by=[_READER])
+
+    first = (await _search(_query(limit=2))).json()
+    second = (await _search(_query(limit=2, offset=2))).json()
+
+    assert first["returned"] == 2
+    assert first["has_more"] is True
+    assert second["returned"] == 1
+    assert second["has_more"] is False
+
+
+@pytest.mark.asyncio
+async def test_search_echoes_the_window_it_used():
+    _install_app()
+    await _seed(2, readable_by=[_READER])
+
+    body = (await _search(_query(limit=1, offset=1))).json()
+
+    assert body["offset"] == 1
+    assert body["limit"] == 1
+    assert body["returned"] == 1
+
+
+@pytest.mark.asyncio
+async def test_search_pages_do_not_overlap_and_cover_everything():
+    _install_app()
+    stored = await _seed(5, readable_by=[_READER])
+
+    seen: list[str] = []
+    async with await _client() as client:
+        offset = 0
+        while True:
+            page = (
+                await client.post(
+                    "/amp/v1/memories/search",
+                    json=_query(limit=2, offset=offset),
+                    headers=_headers(),
+                )
+            ).json()
+            seen.extend(cell["id"] for cell in page["results"])
+            if not page["has_more"]:
+                break
+            offset += page["returned"]
+
+    assert sorted(seen) == sorted(stored)
+    assert len(seen) == len(set(seen)), "a cell appeared on two pages"
+
+
+@pytest.mark.asyncio
+async def test_the_search_window_counts_results_the_caller_may_read():
+    """Same rule as the listing endpoints: read first, then window."""
+    _install_app()
+    await _seed(4, readable_by=[_STRANGER])
+    readable = await _seed(3, readable_by=[_READER])
+
+    page = (await _search(_query(limit=3))).json()
+
+    assert page["returned"] == 3
+    assert page["has_more"] is False
+    assert {cell["id"] for cell in page["results"]} == set(readable)
+
+
+@pytest.mark.asyncio
+async def test_a_search_window_outside_the_bounds_is_refused():
+    _install_app()
+    await _seed(1, readable_by=[_READER])
+
+    assert (await _search(_query(limit=MAX_PAGE_SIZE + 1))).status_code == 422
+    assert (await _search(_query(limit=0))).status_code == 422
+    assert (await _search(_query(offset=-1))).status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_the_search_ceiling_is_the_advertised_one():
+    """One number for both endpoints, so a client cannot be told two."""
+    _install_app()
+
+    async with await _client() as client:
+        advertised = (await client.get("/amp/v1/spec")).json()["capabilities"][
+            "max_page_size"
+        ]
+
+    assert advertised == MAX_PAGE_SIZE
+    await _seed(1, readable_by=[_READER])
+    assert (await _search(_query(limit=advertised))).status_code == 200
+    assert (await _search(_query(limit=advertised + 1))).status_code == 422

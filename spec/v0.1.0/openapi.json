@@ -412,6 +412,12 @@
             "title": "Limit",
             "type": "integer"
           },
+          "offset": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Offset",
+            "type": "integer"
+          },
           "owner_id": {
             "anyOf": [
               {

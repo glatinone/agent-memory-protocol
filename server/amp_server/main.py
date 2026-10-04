@@ -27,6 +27,7 @@ from amp_server.errors import (
 from amp_server.lifecycle import LifecycleEngine
 from amp_server.limits import MAX_CELL_SIZE_BYTES
 from amp_server.models import (
+    MAX_PAGE_SIZE,
     ErrorResponse,
     LifecycleStatus,
     MemoryAccessPolicy,
@@ -41,7 +42,7 @@ from amp_server.models import (
     SearchRequest,
     SearchResponse,
 )
-from amp_server.paging import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, readable_page
+from amp_server.paging import DEFAULT_PAGE_SIZE, readable_page
 from amp_server.ratelimit import (
     ScoringPatchLimiter,
     limit_from_env,
@@ -583,8 +584,24 @@ async def search_memories(
         raise missing_agent_id()
 
     storage = get_storage()
-    results = await storage.search(body, agent_id=x_amp_agent_id)
-    response = SearchResponse(results=results, returned=len(results), query=body.query)
+
+    # One cell past the page, which is what makes `has_more` an answer rather than
+    # an inference: the adapter ranks the whole candidate set before slicing, so
+    # the extra cell costs one comparison and no extra query. `model_copy` does
+    # not re-validate, so asking for `limit + 1` cannot trip the ceiling that
+    # `limit` itself is bounded by.
+    window = body.model_copy(update={"limit": body.limit + 1})
+    cells = await storage.search(window, agent_id=x_amp_agent_id)
+
+    page = cells[: body.limit]
+    response = SearchResponse(
+        results=page,
+        returned=len(page),
+        has_more=len(cells) > body.limit,
+        offset=body.offset,
+        limit=body.limit,
+        query=body.query,
+    )
     return response.model_dump(mode="json")
 
 
