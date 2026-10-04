@@ -61,7 +61,7 @@ Copy the `id` from the response - you'll need it in a moment.
 
 ```json
 {
-  "id": "01J5A3B7K9M2N4P6Q8R0S1T3V5",
+  "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5",
   "type": "semantic",
   "lifecycle": { "status": "active" },
   ...
@@ -82,7 +82,7 @@ curl -X POST http://localhost:8765/amp/v1/memories/search \
 ```json
 {
   "results": [
-    { "id": "01J5A3B7K9M2N4P6Q8R0S1T3V5", "content": { "text": "User prefers Python for backend development" } }
+    { "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5", "content": { "text": "User prefers Python for backend development" } }
   ],
   "total": 1,
   "query": "what language does the user prefer?"
@@ -92,7 +92,7 @@ curl -X POST http://localhost:8765/amp/v1/memories/search \
 **Delete it**
 
 ```bash
-curl -X DELETE http://localhost:8765/amp/v1/memories/01J5A3B7K9M2N4P6Q8R0S1T3V5
+curl -X DELETE http://localhost:8765/amp/v1/memories/mem_01J5A3B7K9M2N4P6Q8R0S1T3V5
 # 204 No Content
 ```
 

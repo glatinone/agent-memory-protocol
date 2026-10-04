@@ -182,7 +182,7 @@ curl -X POST http://localhost:8765/amp/v1/memories \
 ```json
 {
   "amp_version": "0.1.0",
-  "id": "01J5A3B7K9M2N4P6Q8R0S1T3V5",
+  "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5",
   "type": "semantic",
   "content": {
     "text": "User prefers Python for backend development",
@@ -238,7 +238,7 @@ Retrieves a single memory cell by its ULID. Also increments `scoring.access_coun
 **Request**
 
 ```bash
-curl http://localhost:8765/amp/v1/memories/01J5A3B7K9M2N4P6Q8R0S1T3V5
+curl http://localhost:8765/amp/v1/memories/mem_01J5A3B7K9M2N4P6Q8R0S1T3V5
 ```
 
 **Path parameters**
@@ -252,7 +252,7 @@ curl http://localhost:8765/amp/v1/memories/01J5A3B7K9M2N4P6Q8R0S1T3V5
 ```json
 {
   "amp_version": "0.1.0",
-  "id": "01J5A3B7K9M2N4P6Q8R0S1T3V5",
+  "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5",
   "type": "semantic",
   "content": {
     "text": "User prefers Python for backend development",
@@ -309,7 +309,7 @@ Partially updates a memory cell. Only the fields you send are changed; all other
 **Request**
 
 ```bash
-curl -X PATCH http://localhost:8765/amp/v1/memories/01J5A3B7K9M2N4P6Q8R0S1T3V5 \
+curl -X PATCH http://localhost:8765/amp/v1/memories/mem_01J5A3B7K9M2N4P6Q8R0S1T3V5 \
   -H "Content-Type: application/json" \
   -d '{
     "content": {
@@ -345,7 +345,7 @@ Fields that cannot be patched: `id`, `amp_version`, `identity`, `lifecycle.creat
 ```json
 {
   "amp_version": "0.1.0",
-  "id": "01J5A3B7K9M2N4P6Q8R0S1T3V5",
+  "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5",
   "type": "semantic",
   "content": {
     "text": "User strongly prefers Python for backend; also comfortable with Go",
@@ -404,7 +404,7 @@ Soft-deletes a memory cell by setting `lifecycle.status` to `"deleted"`. The cel
 **Request**
 
 ```bash
-curl -X DELETE http://localhost:8765/amp/v1/memories/01J5A3B7K9M2N4P6Q8R0S1T3V5
+curl -X DELETE http://localhost:8765/amp/v1/memories/mem_01J5A3B7K9M2N4P6Q8R0S1T3V5
 ```
 
 **Path parameters**
@@ -463,7 +463,7 @@ curl -X POST http://localhost:8765/amp/v1/memories/search \
   "results": [
     {
       "amp_version": "0.1.0",
-      "id": "01J5A3B7K9M2N4P6Q8R0S1T3V5",
+      "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5",
       "type": "semantic",
       "content": {
         "text": "User prefers Python for backend development",
@@ -617,7 +617,7 @@ All error responses use the following structure:
 {
   "error": {
     "code": "NOT_FOUND",
-    "message": "Memory cell 01J5A3B7K9M2N4P6Q8R0S1T3V5 not found",
+    "message": "Memory cell mem_01J5A3B7K9M2N4P6Q8R0S1T3V5 not found",
     "details": {}
   }
 }
