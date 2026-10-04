@@ -33,6 +33,13 @@ amp-conformance
 Write a machine-readable report with `--json report.json`, run one category with
 `--only http_contract`, or point at a different schema with `--spec PATH`.
 
+The normative JSON Schema travels inside this package, so the suite runs from
+anywhere - the schema category does not need a checkout of this repository beside
+you. `--spec` is only for judging against a different or a newer schema. If no
+schema can be found at all, those vectors report as `skip` with the flag to pass
+rather than as a failure of your server; asking for them explicitly with
+`--only schema` exits non-zero instead, so a skip cannot pass for a pass.
+
 The exit code is `0` when nothing failed and `1` otherwise, so it drops straight
 into CI.
 

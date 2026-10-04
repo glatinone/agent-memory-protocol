@@ -30,7 +30,13 @@ import httpx
 from jsonschema import Draft7Validator
 
 VECTORS_DIR = Path(__file__).resolve().parent / "vectors"
-DEFAULT_SPEC = Path("spec/v0.1.0/memory-cell.schema.json")
+PACKAGE_DIR = Path(__file__).resolve().parent
+
+#: Where the normative JSON Schema lives inside a checkout.
+SPEC_RELATIVE = Path("spec/v0.1.0/memory-cell.schema.json")
+#: Where it lives when the suite was installed from a wheel that carries it.
+PACKAGED_SPEC = PACKAGE_DIR / "spec" / "memory-cell.schema.json"
+DEFAULT_SPEC = SPEC_RELATIVE
 
 LOCAL_CATEGORIES = ("schema", "decay")
 HTTP_CATEGORIES = ("http_contract", "access_control", "spec_capabilities")
@@ -44,7 +50,7 @@ class Result:
 
     id: str
     category: str
-    status: str  # pass | fail | known_gap | unexpected_pass
+    status: str  # pass | fail | known_gap | unexpected_pass | skip
     message: str = ""
 
 
@@ -71,6 +77,7 @@ class Report:
                 "failed": self.failed,
                 "known_gaps": self.count("known_gap"),
                 "unexpected_passes": self.count("unexpected_pass"),
+                "skipped": self.count("skip"),
             },
             "results": [
                 {
@@ -151,15 +158,45 @@ def _result(case: dict[str, Any], category: str, ok: bool, message: str) -> Resu
 # ---------------------------------------------------------------------------
 
 
+def resolve_spec_path(
+    explicit: str | Path | None = None, start: Path | None = None
+) -> Path:
+    """Find the normative JSON Schema, or return the last place looked.
+
+    A conformance suite that judges other people's servers has to be runnable
+    from wherever they happen to be standing. The old default was relative to the
+    working directory, so `amp-conformance --base-url https://theirs.example.com`
+    run anywhere but the repository root reported `schema-spec-file: FAIL` - a
+    failure of the suite's own fixture, attributed to the server under test.
+
+    Order: an explicit `--spec`, then the working directory, then each parent of
+    it (running from a subdirectory), then the copy that ships inside the package.
+    """
+    if explicit is not None:
+        return Path(explicit)
+
+    here = (start or Path.cwd()).resolve()
+    for candidate in (here, *here.parents):
+        found = candidate / SPEC_RELATIVE
+        if found.exists():
+            return found
+    return PACKAGED_SPEC
+
+
 def check_schema(vectors: dict[str, Any], spec_path: Path) -> list[Result]:
     """Validate each document against the normative JSON Schema."""
     if not spec_path.exists():
+        # Not a failure of the server under test: the suite could not find its
+        # own fixture. Reported as a skip with the reason, so a third party
+        # running the suite against their own implementation sees what is missing
+        # rather than a red line about a file they have never heard of.
         return [
             Result(
                 "schema-spec-file",
                 "schema",
-                "fail",
-                f"spec not found at {spec_path}; pass --spec",
+                "skip",
+                f"no normative schema found (looked in {spec_path}); "
+                "pass --spec to run the schema vectors",
             )
         ]
     schema = _load_json(spec_path)
@@ -530,6 +567,7 @@ def _print_report(report: Report) -> None:
             "fail": "FAIL",
             "known_gap": "gap ",
             "unexpected_pass": "FIXD",
+            "skip": "skip",
         }[result.status]
         line = f"{marker} {result.category}: {result.id}"
         if result.message:
@@ -538,7 +576,7 @@ def _print_report(report: Report) -> None:
     summary = report.to_json()["summary"]
     print(
         "\n{passed} passed, {failed} failed, {known_gaps} known gaps, "
-        "{unexpected_passes} unexpected passes".format(**summary)
+        "{unexpected_passes} unexpected passes, {skipped} skipped".format(**summary)
     )
 
 
@@ -554,8 +592,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--spec",
-        default=str(DEFAULT_SPEC),
-        help="Path to the normative JSON Schema (default: %(default)s)",
+        default=None,
+        help=(
+            "Path to the normative JSON Schema. Default: found by searching the "
+            "working directory and its parents, then the copy packaged with this "
+            "suite."
+        ),
     )
     parser.add_argument(
         "--only",
@@ -575,7 +617,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     only = {c.strip() for c in args.only.split(",")} if args.only else None
-    report = run(args.base_url, Path(args.spec), only, args.timeout)
+    report = run(args.base_url, resolve_spec_path(args.spec), only, args.timeout)
     _print_report(report)
 
     if args.json_path:
@@ -584,7 +626,18 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(f"report written to {args.json_path}")
 
-    return 1 if report.failed else 0
+    if report.failed:
+        return 1
+    if only and "schema" in only and report.count("skip"):
+        # The schema vectors were asked for by name and could not run. Exiting 0
+        # here is the failure mode this suite exists to catch in other people's
+        # servers, so it does not get to do it to itself.
+        print(
+            "\nthe schema vectors were requested but skipped; pass --spec",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

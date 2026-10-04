@@ -141,6 +141,16 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   It is now declared first, with a comment saying why the order matters; a test
   catches the next route that forgets.
 
+- **The conformance suite carries the schema it judges against.** Its default
+  path was relative to the working directory, so `amp-conformance --base-url
+  https://their-server.example.com` run anywhere but the repository root reported
+  `schema-spec-file: FAIL` - a missing fixture, reported as a failure of the
+  server under test. The normative schema now ships inside the wheel and the
+  default is resolved by searching the working directory and its parents first,
+  so both a checkout and a `pip install amp-conformance` work from anywhere. When
+  no schema can be found the vectors report as `skip` with the flag to pass;
+  `--only schema` exits non-zero, so a skip cannot quietly pass for a pass.
+
 ### Changed
 - **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a
   conflict with `{"detail": ...}` while `DELETE` answered with

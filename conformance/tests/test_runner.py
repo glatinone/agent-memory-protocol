@@ -55,10 +55,17 @@ def test_local_categories_pass_against_the_repository_spec():
     assert report.count("pass") > 0
 
 
-def test_a_missing_spec_is_reported_as_a_failure(tmp_path):
+def test_a_missing_spec_is_a_skip_not_a_failure(tmp_path):
+    """The suite's own fixture is missing, not the server under test failing.
+
+    It used to report `fail`, which a third party running this suite against
+    their own implementation would read as a problem with their server.
+    """
     report = runner.run(None, tmp_path / "nope.json")
-    assert report.failed == 1
-    assert "spec not found" in report.results[0].message
+
+    assert report.failed == 0
+    assert report.count("skip") == 1
+    assert "no normative schema found" in report.results[0].message
 
 
 def test_schema_vectors_actually_fail_when_the_document_is_wrong():
@@ -151,6 +158,7 @@ def test_report_counts_every_status():
     report.add(runner.Result("b", "c", "fail"))
     report.add(runner.Result("d", "c", "known_gap"))
     report.add(runner.Result("e", "c", "unexpected_pass"))
+    report.add(runner.Result("f", "c", "skip"))
 
     summary = report.to_json()["summary"]
     assert summary == {
@@ -158,8 +166,11 @@ def test_report_counts_every_status():
         "failed": 1,
         "known_gaps": 1,
         "unexpected_passes": 1,
+        "skipped": 1,
     }
     assert report.failed == 1
+    # A skip is not a failure, but it is not hidden either.
+    assert summary["skipped"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -188,3 +199,60 @@ def test_the_reference_server_conforms():
         if r.status == "fail"
     ]
     assert not failures, failures
+
+
+# ---------------------------------------------------------------------------
+# Finding the normative schema
+# ---------------------------------------------------------------------------
+
+
+def test_the_schema_is_found_from_a_subdirectory(tmp_path):
+    """A checkout run from anywhere inside itself still finds the spec."""
+    from amp_conformance.runner import SPEC_RELATIVE, resolve_spec_path
+
+    root = tmp_path / "checkout"
+    (root / SPEC_RELATIVE.parent).mkdir(parents=True)
+    (root / SPEC_RELATIVE).write_text("{}", encoding="utf-8")
+    nested = root / "conformance" / "tests"
+    nested.mkdir(parents=True)
+
+    assert resolve_spec_path(start=nested) == root / SPEC_RELATIVE
+
+
+def test_an_explicit_spec_wins(tmp_path):
+    from amp_conformance.runner import resolve_spec_path
+
+    chosen = tmp_path / "my-schema.json"
+    assert resolve_spec_path(chosen, start=tmp_path) == chosen
+
+
+def test_a_missing_schema_is_a_skip_and_names_the_flag(tmp_path):
+    """Not a failure of the server under test: the fixture is what is missing."""
+    from amp_conformance.runner import check_schema, load_vectors
+
+    results = check_schema(load_vectors(), tmp_path / "absent.json")
+
+    assert [r.status for r in results] == ["skip"]
+    assert "--spec" in results[0].message
+
+
+def test_the_packaged_copy_is_the_last_thing_tried(tmp_path, monkeypatch):
+    from amp_conformance import runner
+
+    elsewhere = tmp_path / "nowhere"
+    elsewhere.mkdir()
+    monkeypatch.setattr(runner, "PACKAGED_SPEC", elsewhere / "spec.json")
+
+    assert runner.resolve_spec_path(start=elsewhere) == elsewhere / "spec.json"
+
+
+def test_an_explicit_only_schema_does_not_pass_by_skipping(tmp_path):
+    import amp_conformance.runner as runner
+
+    report = runner.run(None, tmp_path / "absent.json", only={"schema"})
+    assert report.count("skip") == 1
+
+    # main() turns that into a non-zero exit; the summary alone would read green.
+    assert (
+        runner.main(["--spec", str(tmp_path / "absent.json"), "--only", "schema"]) == 1
+    )
