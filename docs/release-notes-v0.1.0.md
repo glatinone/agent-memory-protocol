@@ -74,7 +74,7 @@ released together.
 **Examples** under `examples/`: a quickstart, an MCP `claude-desktop` config,
 and a multi-agent demo where one agent is blocked by cell-level access policy.
 
-277 server tests, 34 Python SDK tests plus 10 more against a real server, 24 Node tests and 39 conformance vectors.
+251 server tests (26 more skip without PostgreSQL), 34 Python SDK tests plus 10 more against a real server, 24 Node tests and 39 conformance vectors.
 CI runs lint, format and type gates across every package, Python 3.11 and 3.12,
 Node 18, 20 and 22, the storage contract suite against a real PostgreSQL service
 container, and the conformance suite against a live server.

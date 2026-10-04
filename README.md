@@ -194,7 +194,7 @@ Worth reading before you build on this:
   developed on has no PostgreSQL, so the storage contract suite runs against a real
   `pgvector` container in CI and skips locally.
 
-277 server tests, 34 Python SDK tests plus 10 more against a real server, 24 Node tests and 39 conformance vectors run
+251 server tests (26 more skip without PostgreSQL), 34 Python SDK tests plus 10 more against a real server, 24 Node tests and 39 conformance vectors run
 in CI across Python 3.11/3.12 and Node 18/20/22, with lint, format and type gates on
 every package.
 

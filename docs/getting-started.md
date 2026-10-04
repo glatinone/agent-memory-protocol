@@ -72,6 +72,7 @@ Copy the `id` from the response - you'll need it in a moment.
 
 ```bash
 curl -X POST http://localhost:8765/amp/v1/memories/search \
+  -H "X-AMP-Agent-ID: my-agent" \
   -H "Content-Type: application/json" \
   -d '{
     "query": "what language does the user prefer?",
@@ -92,11 +93,21 @@ curl -X POST http://localhost:8765/amp/v1/memories/search \
 **Delete it**
 
 ```bash
-curl -X DELETE http://localhost:8765/amp/v1/memories/mem_01J5A3B7K9M2N4P6Q8R0S1T3V5
+# a cell has to be archived before it can be deleted; the protocol has no
+# "delete it whatever state it is in" step
+curl -X PATCH http://localhost:8765/amp/v1/memories/mem_01J5A3B7K9M2N4P6Q8R0S1T3V5 \
+  -H "X-AMP-Agent-ID: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{"lifecycle": {"status": "archived"}}'
+
+curl -X DELETE http://localhost:8765/amp/v1/memories/mem_01J5A3B7K9M2N4P6Q8R0S1T3V5 \
+  -H "X-AMP-Agent-ID: my-agent"
 # 204 No Content
 ```
 
-Deletion is a soft-delete: `lifecycle.status` is set to `"deleted"` and the cell is excluded from future searches.
+Deletion is a soft-delete: `lifecycle.status` is set to `"deleted"` and the cell is excluded from
+future searches. Deleting a cell that is not `archived` answers `409 INVALID_TRANSITION` - the
+two-step order is deliberate, so a delete cannot race the decay engine.
 
 ---
 

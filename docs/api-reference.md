@@ -294,7 +294,8 @@ Retrieves a single memory cell by its ULID. Also increments `scoring.access_coun
 **Request**
 
 ```bash
-curl http://localhost:8765/amp/v1/memories/mem_01J5A3B7K9M2N4P6Q8R0S1T3V5
+curl http://localhost:8765/amp/v1/memories/mem_01J5A3B7K9M2N4P6Q8R0S1T3V5 \
+  -H "X-AMP-Agent-ID: agent-456"
 ```
 
 **Path parameters**
@@ -366,6 +367,7 @@ Partially updates a memory cell. Only the fields you send are changed; all other
 
 ```bash
 curl -X PATCH http://localhost:8765/amp/v1/memories/mem_01J5A3B7K9M2N4P6Q8R0S1T3V5 \
+  -H "X-AMP-Agent-ID: agent-456" \
   -H "Content-Type: application/json" \
   -d '{
     "content": {
@@ -463,8 +465,10 @@ so a generated client will not offer it either.
 
 | Status | `error.code` | Cause |
 |--------|-------------|-------|
+| `401` | `MISSING_AGENT_ID` | The `X-AMP-Agent-ID` header is absent |
 | `404` | `NOT_FOUND` | No cell with the given ID |
 | `403` | `FORBIDDEN` | Caller is not in `writable_by` |
+| `409` | `INVALID_TRANSITION` | The cell is not `archived` yet - archive it first |
 | `422` | `VALIDATION_ERROR` | Invalid field value |
 
 ---
@@ -506,7 +510,8 @@ The record is not removable for at least 30 days (`retention_days` in [`GET /spe
 **Request**
 
 ```bash
-curl -X DELETE http://localhost:8765/amp/v1/memories/mem_01J5A3B7K9M2N4P6Q8R0S1T3V5
+curl -X DELETE http://localhost:8765/amp/v1/memories/mem_01J5A3B7K9M2N4P6Q8R0S1T3V5 \
+  -H "X-AMP-Agent-ID: agent-456"
 ```
 
 **Path parameters**
@@ -536,6 +541,7 @@ Performs semantic (vector) search over active memory cells for a given owner. Re
 
 ```bash
 curl -X POST http://localhost:8765/amp/v1/memories/search \
+  -H "X-AMP-Agent-ID: agent-456" \
   -H "Content-Type: application/json" \
   -d '{
     "query": "what programming languages does the user know?",
