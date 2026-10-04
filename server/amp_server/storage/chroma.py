@@ -22,50 +22,19 @@ from amp_server.models import (
     MemoryType,
     SearchRequest,
 )
+from amp_server.ranking import combined_score
 from amp_server.storage.base import (
     InvalidTransitionError,
     MemoryNotFoundError,
     StorageAdapter,
 )
-
-_IMMUTABLE_KEYS = frozenset({"id", "type", "amp_version", "identity"})
+from amp_server.storage.records import apply_updates, deserialize_cell, serialize_cell
 
 # The whole cell is stored as one JSON blob under this metadata key. Chroma
 # metadata values must be scalars, so the cell cannot be stored field-by-field.
 _CELL_JSON_KEY = "_cell_json"
 
-# Search ranking blend: how much weight vector similarity vs. the cell's
-# current decay score (spec §7 — importance x confidence x e^-decay*Δt)
-# carries in the final ordering. Without this, `compute_decay_score` only
-# ever drove active->stale->archived transitions and had no effect on
-# ranking, so two cells with identical text but very different freshness/
-# importance came back in an arbitrary vector-distance order.
-_SIMILARITY_WEIGHT = 0.7
-_DECAY_WEIGHT = 0.3
-
-
-def _combined_score(similarity: float, cell: MemoryCell) -> float:
-    """Blend vector similarity with decay so relevance still dominates
-    (a barely-related but fresh cell should not outrank a highly relevant
-    one), while a stale/low-importance duplicate ranks below a fresher,
-    more important one at similar relevance."""
-    # Deferred import: amp_server.lifecycle imports amp_server.storage.base,
-    # and importing amp_server.storage.base triggers amp_server/storage/__init__.py,
-    # which imports this module — a module-level import here would be circular.
-    from amp_server.lifecycle import compute_decay_score
-
-    decay = compute_decay_score(cell)
-    return _SIMILARITY_WEIGHT * max(0.0, similarity) + _DECAY_WEIGHT * decay
-
-
-def _serialize_cell(cell: MemoryCell) -> dict[str, Any]:
-    """Convert a MemoryCell to a JSON-safe dict (all datetimes as ISO strings)."""
-    return json.loads(cell.model_dump_json())
-
-
-def _deserialize_cell(data: dict[str, Any]) -> MemoryCell:
-    """Reconstruct a MemoryCell from a stored dict."""
-    return MemoryCell.model_validate(data)
+# Search ranking is shared with every other backend; see amp_server.ranking.
 
 
 def _as_list(value: Any) -> list[Any]:
@@ -81,7 +50,7 @@ def _as_list(value: Any) -> list[Any]:
 
 def _cell_from_metadata(meta: Any) -> MemoryCell:
     """Decode a cell from the single JSON blob stored as its Chroma metadata."""
-    return _deserialize_cell(json.loads(str(meta[_CELL_JSON_KEY])))
+    return deserialize_cell(json.loads(str(meta[_CELL_JSON_KEY])))
 
 
 class ChromaAdapter(StorageAdapter):
@@ -127,7 +96,7 @@ class ChromaAdapter(StorageAdapter):
     async def save(self, cell: MemoryCell) -> str:
         # Checked before anything is written, so a refused cell leaves no trace.
         enforce_cell_size(cell)
-        cell_data = _serialize_cell(cell)
+        cell_data = serialize_cell(cell)
         self._collection.add(
             ids=[cell.id],
             documents=[cell.content.text],
@@ -152,7 +121,7 @@ class ChromaAdapter(StorageAdapter):
         self, memory_id: str, updates: MemoryCellUpdate | dict[str, Any]
     ) -> MemoryCell:
         cell = await self._get_raw(memory_id)
-        cell_dict = _serialize_cell(cell)
+        cell_dict = serialize_cell(cell)
         if isinstance(updates, dict):
             updates_dict = updates
         else:
@@ -177,7 +146,7 @@ class ChromaAdapter(StorageAdapter):
 
         self._apply_updates(cell_dict, updates_dict)
         cell_dict["lifecycle"]["last_updated_at"] = datetime.now(UTC).isoformat()
-        updated_cell = _deserialize_cell(cell_dict)
+        updated_cell = deserialize_cell(cell_dict)
         # Enforced on the merged result and before the write, so a PATCH cannot
         # grow a cell past the advertised maximum either.
         enforce_cell_size(updated_cell)
@@ -192,10 +161,10 @@ class ChromaAdapter(StorageAdapter):
                 f"Cannot delete cell with status '{cell.lifecycle.status}'. "
                 "Archive it first."
             )
-        cell_dict = _serialize_cell(cell)
+        cell_dict = serialize_cell(cell)
         cell_dict["lifecycle"]["status"] = LifecycleStatus.DELETED.value
         cell_dict["lifecycle"]["last_updated_at"] = datetime.now(UTC).isoformat()
-        updated_cell = _deserialize_cell(cell_dict)
+        updated_cell = deserialize_cell(cell_dict)
         await self._update_internal(memory_id, updated_cell)
 
     async def purge(self, memory_id: str) -> None:
@@ -255,7 +224,7 @@ class ChromaAdapter(StorageAdapter):
 
             # Chroma's cosine distance is 1 - cosine_similarity.
             similarity = 1.0 - distance
-            scored.append((_combined_score(similarity, cell), cell))
+            scored.append((combined_score(similarity, cell), cell))
 
         scored.sort(key=lambda pair: pair[0], reverse=True)
         return [cell for _, cell in scored[: request.limit]]
@@ -303,7 +272,7 @@ class ChromaAdapter(StorageAdapter):
 
     async def _update_internal(self, memory_id: str, cell: MemoryCell) -> None:
         """Overwrite a cell's stored data in ChromaDB."""
-        cell_data = _serialize_cell(cell)
+        cell_data = serialize_cell(cell)
         self._collection.update(
             ids=[memory_id],
             documents=[cell.content.text],
@@ -313,11 +282,9 @@ class ChromaAdapter(StorageAdapter):
 
     @staticmethod
     def _apply_updates(target: dict, updates: dict, _root: bool = True) -> None:
-        """Recursively merge updates into target, blocking immutable top-level keys."""
-        for key, value in updates.items():
-            if _root and key in _IMMUTABLE_KEYS:
-                continue
-            if isinstance(value, dict) and isinstance(target.get(key), dict):
-                ChromaAdapter._apply_updates(target[key], value, _root=False)
-            else:
-                target[key] = value
+        """Kept as a thin delegate so the call site reads the same as before.
+
+        The merge rule itself is shared with every other backend
+        (`amp_server.storage.records.apply_updates`).
+        """
+        apply_updates(target, updates)
