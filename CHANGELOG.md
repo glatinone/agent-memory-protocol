@@ -177,6 +177,12 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **A stray `total` in the search example** in `docs/api-reference.md` - left from
   the field's rename, and still documenting the count that was never computed.
 
+- **Both SDKs can page.** `recall` and `list_memories` (Python sync, Python async)
+  and `recall` / `listMemories` (Node) take an `offset`, so the pagination the
+  server gained is reachable from a client rather than only from `curl`. A page
+  shorter than `limit` is the last one; the response's `has_more` is available
+  through the underlying client for callers who need it explicitly.
+
 ### Changed
 - **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a
   conflict with `{"detail": ...}` while `DELETE` answered with

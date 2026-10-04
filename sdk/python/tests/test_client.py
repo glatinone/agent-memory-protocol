@@ -189,6 +189,53 @@ def test_health_error(mock_request):
 
 
 # ---------------------------------------------------------------------------
+# Paging the listing and search endpoints
+# ---------------------------------------------------------------------------
+
+
+@patch("requests.Session.request")
+def test_recall_sends_the_page_offset(mock_request):
+    """The server pages by offset; an SDK that cannot send one cannot page."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"results": [], "returned": 0, "has_more": False}
+    mock_request.return_value = mock_response
+
+    client = AMPClient("http://localhost:8000", "agent-1")
+    client.recall("a query", owner_id="user_abc", limit=5, offset=10)
+
+    payload = mock_request.call_args.kwargs["json"]
+    assert payload["offset"] == 10
+    assert payload["limit"] == 5
+
+
+@patch("requests.Session.request")
+def test_recall_defaults_to_the_first_page(mock_request):
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"results": []}
+    mock_request.return_value = mock_response
+
+    client = AMPClient("http://localhost:8000", "agent-1")
+    client.recall("a query", owner_id="user_abc")
+
+    assert mock_request.call_args.kwargs["json"]["offset"] == 0
+
+
+@patch("requests.Session.request")
+def test_list_memories_sends_the_page_offset(mock_request):
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"results": []}
+    mock_request.return_value = mock_response
+
+    client = AMPClient("http://localhost:8000", "agent-1")
+    client.list_memories(owner_id="user_abc", limit=20, offset=20)
+
+    assert mock_request.call_args.kwargs["params"]["offset"] == 20
+
+
+# ---------------------------------------------------------------------------
 # API keys (X-AMP-API-Key)
 # ---------------------------------------------------------------------------
 

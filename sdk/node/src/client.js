@@ -179,14 +179,18 @@ export class AMPClient {
    * @returns {Promise<MemoryCell[]>}
    */
   async recall(query, ownerId, options = {}) {
-    const { limit = 5, includeStale = false } = options;
+    const { limit = 5, includeStale = false, offset = 0 } = options;
 
+    // `offset` skips that many results this agent may read, so the next call
+    // reaches the next page. A page shorter than `limit` is the last one; the
+    // response also carries `has_more`, which this method does not return.
     const response = await this._request("POST", "/memories/search", {
       body: {
         query,
         owner_id: ownerId,
         limit,
         include_stale: includeStale,
+        offset,
       },
     });
     const data = await response.json();
@@ -221,15 +225,19 @@ export class AMPClient {
    * List memory cells by owner, without semantic search.
    *
    * @param {string} ownerId
-   * @param {{ type?: string, limit?: number }} [options]
+   * @param {{ type?: string, limit?: number, offset?: number }} [options]
    * @returns {Promise<MemoryCell[]>}
    */
   async listMemories(ownerId, options = {}) {
-    const { type, limit = 20 } = options;
+    // `offset` skips that many results this agent may read, so the next call
+    // reaches the next page. A page shorter than `limit` is the last one; the
+    // response also carries `has_more`, which this method does not return.
+    const { type, limit = 20, offset = 0 } = options;
 
     const params = new URLSearchParams({
       owner_id: ownerId,
       limit: String(limit),
+      offset: String(offset),
     });
     if (type !== undefined) params.set("type", type);
 

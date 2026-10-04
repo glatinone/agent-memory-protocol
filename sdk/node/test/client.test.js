@@ -23,6 +23,58 @@ const OWNER = `node-sdk-test-user-${Date.now()}`;
 // being collected, before any hook runs, and would always skip.
 let serverUp = false;
 
+describe("Paging", () => {
+  // These capture the request the client actually makes. Asserting on a body
+  // object built inside the test would prove nothing about the client.
+
+  async function withCapturedFetch(run) {
+    const calls = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = async (url, init) => {
+      calls.push({ url: String(url), init });
+      return new Response(JSON.stringify({ results: [], returned: 0, has_more: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+    try {
+      await run();
+    } finally {
+      globalThis.fetch = original;
+    }
+    return calls;
+  }
+
+  test("recall sends the offset in the request body", async () => {
+    const client = new AMPClient("http://localhost:8000", "agent-1");
+
+    const calls = await withCapturedFetch(() =>
+      client.recall("a query", "user-123", { limit: 5, offset: 10 }),
+    );
+
+    assert.equal(JSON.parse(calls[0].init.body).offset, 10);
+    assert.equal(JSON.parse(calls[0].init.body).limit, 5);
+  });
+
+  test("recall defaults to the first page", async () => {
+    const client = new AMPClient("http://localhost:8000", "agent-1");
+
+    const calls = await withCapturedFetch(() => client.recall("a query", "user-123"));
+
+    assert.equal(JSON.parse(calls[0].init.body).offset, 0);
+  });
+
+  test("listMemories sends the offset in the query string", async () => {
+    const client = new AMPClient("http://localhost:8000", "agent-1");
+
+    const calls = await withCapturedFetch(() =>
+      client.listMemories("user-123", { limit: 20, offset: 20 }),
+    );
+
+    assert.equal(new URL(calls[0].url).searchParams.get("offset"), "20");
+  });
+});
+
 describe("API keys", () => {
   test("omits the key header unless one was given", () => {
     const client = new AMPClient("http://localhost:8000", "agent-1");

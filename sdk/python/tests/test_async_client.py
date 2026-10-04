@@ -140,3 +140,51 @@ def test_async_identity_headers_carry_the_key_when_one_was_given():
         "X-AMP-Agent-ID": "agent-1",
         "X-AMP-API-Key": "agent-one-key",
     }
+
+
+# ---------------------------------------------------------------------------
+# Paging
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@patch("httpx.AsyncClient.post")
+async def test_async_recall_sends_the_page_offset(mock_post):
+    """The server pages by offset; an SDK that cannot send one cannot page."""
+    mock_response = MagicMock(spec=httpx.Response)
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"results": [], "returned": 0, "has_more": False}
+    mock_post.return_value = mock_response
+
+    async with AsyncAMPClient("http://localhost:8000", "test_agent") as client:
+        await client.recall(query="test query", owner_id="user_abc", limit=5, offset=10)
+
+    assert mock_post.call_args.kwargs["json"]["offset"] == 10
+
+
+@pytest.mark.asyncio
+@patch("httpx.AsyncClient.post")
+async def test_async_recall_defaults_to_the_first_page(mock_post):
+    mock_response = MagicMock(spec=httpx.Response)
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"results": []}
+    mock_post.return_value = mock_response
+
+    async with AsyncAMPClient("http://localhost:8000", "test_agent") as client:
+        await client.recall(query="test query", owner_id="user_abc")
+
+    assert mock_post.call_args.kwargs["json"]["offset"] == 0
+
+
+@pytest.mark.asyncio
+@patch("httpx.AsyncClient.get")
+async def test_async_list_memories_sends_the_page_offset(mock_get):
+    mock_response = MagicMock(spec=httpx.Response)
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"results": []}
+    mock_get.return_value = mock_response
+
+    async with AsyncAMPClient("http://localhost:8000", "test_agent") as client:
+        await client.list_memories(owner_id="user_abc", limit=20, offset=20)
+
+    assert mock_get.call_args.kwargs["params"]["offset"] == 20

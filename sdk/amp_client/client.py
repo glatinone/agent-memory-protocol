@@ -133,14 +133,19 @@ class AMPClient:
         owner_id: str,
         limit: int = 5,
         include_stale: bool = False,
+        offset: int = 0,
     ) -> list[dict[str, Any]]:
         """Semantic search over Memory Cells.
 
         Args:
             query: Natural language search query.
             owner_id: Filter to cells owned by this ID.
-            limit: Maximum results to return.
+            limit: Maximum results in this page.
             include_stale: If True, includes stale cells in results.
+            offset: Skip this many results this agent may read, to reach the next
+                page. A page shorter than `limit` is the last one - the response
+                also carries `has_more`, which this method does not return; use
+                `session` / `fetch` directly if you need it.
 
         Returns:
             The list of memory cells in 'results'.
@@ -150,6 +155,7 @@ class AMPClient:
             "owner_id": owner_id,
             "limit": limit,
             "include_stale": include_stale,
+            "offset": offset,
         }
 
         response = self._request("POST", "/memories/search", json=payload)
@@ -188,13 +194,17 @@ class AMPClient:
         owner_id: str,
         type: str | None = None,
         limit: int = 20,
+        offset: int = 0,
     ) -> list[dict[str, Any]]:
         """List Memory Cells by owner_id and optionally type.
 
         Args:
             owner_id: The ID of the owner.
             type: Optional memory type filter.
-            limit: Maximum results to return.
+            limit: Maximum results in this page.
+            offset: Skip this many results this agent may read, to reach the next
+                page. A page shorter than `limit` is the last one; `has_more` is in
+                the response but not returned here.
 
         Returns:
             The list of memory cells.
@@ -202,6 +212,7 @@ class AMPClient:
         params: dict[str, Any] = {
             "owner_id": owner_id,
             "limit": limit,
+            "offset": offset,
         }
         if type is not None:
             params["type"] = type

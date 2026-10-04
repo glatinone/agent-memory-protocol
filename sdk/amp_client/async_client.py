@@ -109,12 +109,20 @@ class AsyncAMPClient:
         owner_id: str,
         limit: int = 5,
         include_stale: bool = False,
+        offset: int = 0,
     ) -> list[dict[str, Any]]:
+        """Semantic search over Memory Cells.
+
+        `offset` skips that many results this agent may read, so the next call
+        reaches the next page. A page shorter than `limit` is the last one; the
+        response also carries `has_more`, which this method does not return.
+        """
         body = {
             "query": query,
             "owner_id": owner_id,
             "limit": limit,
             "include_stale": include_stale,
+            "offset": offset,
         }
         async with self._get_client() as client:
             try:
@@ -149,10 +157,17 @@ class AsyncAMPClient:
         owner_id: str,
         type: str | None = None,
         limit: int = 20,
+        offset: int = 0,
     ) -> list[dict[str, Any]]:
+        """List Memory Cells by owner_id and optionally type.
+
+        `offset` skips that many results this agent may read, so the next call
+        reaches the next page. A page shorter than `limit` is the last one.
+        """
         params = {
             "owner_id": owner_id,
             "limit": limit,
+            "offset": offset,
         }
         if type is not None:
             params["type"] = type

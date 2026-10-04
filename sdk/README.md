@@ -37,6 +37,22 @@ print(memories[0]["content"]["text"])
 
 ---
 
+## Paging
+
+`recall` and `list_memories` take an `offset`, which skips that many results the
+agent may read - so page 2 is page 2 of what it can see, not of what the store
+holds:
+
+```python
+page = client.list_memories(owner_id="user_123", limit=20, offset=20)
+```
+
+A page shorter than `limit` is the last one. The HTTP response also carries
+`has_more`; these methods return the cells, so use `client.session` (or
+`client._client` on the async client) if you need it.
+
+---
+
 ## Full API Reference
 
 ### `AMPClient` (Sync)

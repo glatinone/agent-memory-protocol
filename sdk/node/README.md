@@ -60,13 +60,28 @@ Returns the created cell.
 
 ### `recall(query, ownerId, options?)`
 
-Semantic search. Options: `limit` (default 5), `includeStale` (default false).
-Returns an array of matching cells, ranked by blended similarity and decay score.
+Semantic search. Options: `limit` (default 5), `includeStale` (default false),
+`offset` (default 0). Returns an array of matching cells, ranked by blended
+similarity and decay score.
 
 ### `listMemories(ownerId, options?)`
 
 Lists cells by owner without semantic search. Options: `type`, `limit` (default
-20).
+20), `offset` (default 0).
+
+### Paging
+
+Both listing methods take `offset`, which skips that many results *this agent may
+read* - so page 2 is page 2 of what this client can see, not of what the store
+holds:
+
+```js
+const page2 = await client.listMemories("user-123", { limit: 20, offset: 20 });
+```
+
+A page shorter than `limit` is the last one. The HTTP response also carries
+`has_more`; these methods return the cells, so use `fetch` against
+`/amp/v1/memories` directly if you need it.
 
 ### `forget(memoryId)`
 
