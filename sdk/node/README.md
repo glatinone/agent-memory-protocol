@@ -6,11 +6,13 @@ same server the same way.
 
 ## Install
 
-Not published to npm yet. Use it from a clone:
+On npm:
 
 ```bash
-npm install ./sdk/node
+npm install @glatinone/amp-client
 ```
+
+Working on the client itself instead? `npm install ./sdk/node`.
 
 **No dependencies.** Node 18 and later ship `fetch`, so this client needs no HTTP
 library, no build step, and no lockfile. Types come from JSDoc, which editors
