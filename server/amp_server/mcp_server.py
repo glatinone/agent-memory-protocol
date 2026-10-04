@@ -26,6 +26,29 @@ from amp_server.storage.chroma import ChromaAdapter
 # Create the FastMCP server instance
 mcp = FastMCP("AMP")
 
+#: The identity this MCP server acts as when `AMP_MCP_AGENT_ID` is unset.
+DEFAULT_AGENT_ID = "mcp_client"
+
+
+def agent_id() -> str:
+    """Which agent this MCP server acts as.
+
+    Every access rule is decided from this identity, so one shared default means
+    every MCP client pointed at the same store is the same agent: a cell one of
+    them created is readable by all of them, `readable_by` patterns naming real
+    agent ids never match anything a caller wrote, and `identity.created_by` -
+    the attribution RFC-AMP-001 §5 leans on to make a poisoned memory traceable -
+    records a name no agent uses. A caller who passes `readable_by` to
+    `amp_remember` is in the worst spot: the cell it just stored is one its own
+    server may not be able to recall.
+
+    Run one MCP server per agent and set `AMP_MCP_AGENT_ID` in its `mcp_config.json`
+    `env` block. Read per call rather than cached at import, because the client
+    sets the environment when it spawns this process.
+    """
+    return os.environ.get("AMP_MCP_AGENT_ID") or DEFAULT_AGENT_ID
+
+
 # Storage injection holder for testing
 _storage: ChromaAdapter | None = None
 
@@ -61,7 +84,7 @@ async def amp_remember(
         identity=MemoryIdentity(
             owner_id=owner_id,
             owner_type=OwnerType.USER,
-            created_by="mcp_client",
+            created_by=agent_id(),
         ),
         lifecycle=MemoryLifecycle(
             created_at=datetime.now(UTC),
@@ -89,7 +112,7 @@ async def amp_recall(
         limit=limit,
         include_stale=include_stale,
     )
-    results = await storage.search(request, agent_id="mcp_client")
+    results = await storage.search(request, agent_id=agent_id())
     if not results:
         return "No memories found."
 
@@ -114,7 +137,7 @@ async def amp_forget(memory_id: str, owner_id: str) -> str:
     if cell.identity.owner_id != owner_id:
         return "Memory not found."
 
-    if not check_write_access(cell, "mcp_client"):
+    if not check_write_access(cell, agent_id()):
         return "Memory not found."
 
     try:
@@ -146,7 +169,7 @@ async def amp_list_memories(
         limit=limit,
     )
 
-    allowed_cells = [c for c in cells if check_read_access(c, "mcp_client")]
+    allowed_cells = [c for c in cells if check_read_access(c, agent_id())]
 
     if not allowed_cells:
         return "No memories found."

@@ -4,7 +4,8 @@
       "command": "python",
       "args": ["-m", "amp_server.mcp_server"],
       "env": {
-        "AMP_PERSIST_DIR": "/absolute/path/to/a/persistent/data/directory"
+        "AMP_PERSIST_DIR": "/absolute/path/to/a/persistent/data/directory",
+        "AMP_MCP_AGENT_ID": "claude-desktop"
       }
     }
   }

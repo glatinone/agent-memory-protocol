@@ -97,6 +97,10 @@ Stated plainly rather than left for you to discover:
   was developed on has no PostgreSQL, so the adapter's proof is the CI service
   container. Run `pytest tests/test_adapter_contract.py` with
   `AMP_TEST_POSTGRES_DSN` set to check it against yours.
+- **The MCP binding's identity is shared by default.** One MCP server acts as one
+  agent (`AMP_MCP_AGENT_ID`); unset, every MCP client pointed at the same store is
+  the same agent, so per-agent `readable_by` is only meaningful once you set it -
+  and run one server per agent.
 - **Some state is per process.** The scoring-edit budget lives in the server
   process, so two processes over one database keep two budgets. The retention
   purge is likewise an in-process scheduled pass.

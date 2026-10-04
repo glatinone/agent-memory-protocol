@@ -152,12 +152,20 @@ Add the following JSON snippet to your `claude_desktop_config.json` (typically l
       "command": "python",
       "args": ["-m", "amp_server.mcp_server"],
       "env": {
-        "AMP_PERSIST_DIR": "C:\\path\\to\\your\\persistent\\dir"
+        "AMP_PERSIST_DIR": "C:\\path\\to\\your\\persistent\\dir",
+        "AMP_MCP_AGENT_ID": "claude-desktop"
       }
     }
   }
 }
 ```
+
+`AMP_MCP_AGENT_ID` is the agent this MCP server acts as. Set it to something that
+names the client, and set a different value for each one you run: every access rule
+is decided from this identity, so a shared value means every MCP client pointed at
+the same store is the same agent - cells one of them created are readable by the
+others, and `readable_by` patterns naming real agent ids never match. Unset, it
+falls back to `mcp_client`, which is a shared namespace rather than an identity.
 
 > [!IMPORTANT]
 > The command must be run in an environment where the `amp-server` package (containing the `amp_server` module) is installed. Ensure your python environment path or active virtual environment is correctly accessible to the command.

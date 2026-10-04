@@ -227,6 +227,18 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `app_state` / `app_client` fixtures, and CI runs the server suite file by file so
   the whole class fails loudly instead of being averaged away by test ordering.
 
+- **The MCP binding can act as a real agent** (`AMP_MCP_AGENT_ID`). Every access
+  rule is decided from the caller's identity, and this binding hard-coded
+  `mcp_client` - so every MCP client pointed at one store was the same agent: a
+  cell one of them created was readable by the others, `readable_by` patterns
+  naming real agent ids matched nothing, and `identity.created_by` recorded a name
+  no agent uses, which is the attribution RFC-AMP-001 §5 relies on to make a
+  poisoned memory traceable. A caller passing `readable_by` to `amp_remember` was
+  in the worst spot: it stored a cell its own server could not recall. The identity
+  is now read from the environment, one value per MCP server, defaulting to the old
+  shared name so nothing breaks - and the getting-started config and the example
+  `mcp_config.json` both set it.
+
 ### Changed
 - **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a
   conflict with `{"detail": ...}` while `DELETE` answered with

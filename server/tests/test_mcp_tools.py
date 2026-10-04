@@ -6,6 +6,7 @@ import pytest
 from conftest import make_cell
 
 from amp_server.mcp_server import (
+    DEFAULT_AGENT_ID,
     amp_forget,
     amp_list_memories,
     amp_recall,
@@ -168,3 +169,75 @@ async def test_amp_list_memories_success(storage):
     # List with no matches
     res_empty = await amp_list_memories(owner_id="user-456")
     assert res_empty == "No memories found."
+
+
+# ---------------------------------------------------------------------------
+# The identity the binding acts as
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_the_configured_identity_is_recorded_as_created_by(storage, monkeypatch):
+    """`created_by` is what makes a memory attributable; a shared name is not that."""
+    monkeypatch.setenv("AMP_MCP_AGENT_ID", "agent-research")
+
+    result = await amp_remember(content="a fact", owner_id="user-123")
+    cell = await storage._get_raw(result.split(": ")[1])
+
+    assert cell.identity.created_by == "agent-research"
+
+
+@pytest.mark.asyncio
+async def test_the_default_identity_is_used_when_none_is_configured(
+    storage, monkeypatch
+):
+    monkeypatch.delenv("AMP_MCP_AGENT_ID", raising=False)
+
+    result = await amp_remember(content="a fact", owner_id="user-123")
+    cell = await storage._get_raw(result.split(": ")[1])
+
+    assert cell.identity.created_by == DEFAULT_AGENT_ID
+
+
+@pytest.mark.asyncio
+async def test_a_cell_restricted_to_an_agent_is_reachable_when_it_is_that_agent(
+    storage, monkeypatch
+):
+    """The point of the variable: per-agent policy has to work through this binding.
+
+    `amp_remember` takes `readable_by`. With one shared identity, a caller that
+    restricts a cell to a specific agent stores something its own server cannot
+    recall - the restriction names an agent that, from this binding, never calls.
+    """
+    monkeypatch.setenv("AMP_MCP_AGENT_ID", "agent-research")
+    stored = await amp_remember(
+        content="restricted fact", owner_id="user-123", readable_by=["agent-research"]
+    )
+
+    recalled = await amp_recall(query="restricted fact", owner_id="user-123")
+
+    assert "restricted fact" in recalled
+
+    # And another identity cannot read it.
+    monkeypatch.setenv("AMP_MCP_AGENT_ID", "agent-somebody-else")
+    assert await amp_recall(query="restricted fact", owner_id="user-123") == (
+        "No memories found."
+    )
+    assert stored.startswith("Memory stored: mem_")
+
+
+@pytest.mark.asyncio
+async def test_forget_is_gated_on_the_configured_identity(storage, monkeypatch):
+    monkeypatch.setenv("AMP_MCP_AGENT_ID", "agent-research")
+    cell = make_cell(
+        owner_id="user-123",
+        created_by="agent-research",
+        writable_by=["agent-research"],
+    )
+    await storage.save(cell)
+
+    monkeypatch.setenv("AMP_MCP_AGENT_ID", "agent-intruder")
+    assert await amp_forget(cell.id, owner_id="user-123") == "Memory not found."
+
+    monkeypatch.setenv("AMP_MCP_AGENT_ID", "agent-research")
+    assert (await amp_forget(cell.id, owner_id="user-123")).startswith("Memory ")
