@@ -9,10 +9,22 @@ Like MCP for tool calling - but for memory.
 
 ---
 
+![Three agents use one shared memory: one stores a preference, a second reads it, a third is refused — then the same query over HTTP returns a result for one agent and nothing for the other](assets/amp-demo.gif)
+
+*Real output from a real server: the multi-agent demo plus two `curl` calls. The
+[README](https://github.com/glatinone/agent-memory-protocol#readme) has the commands
+to reproduce it.*
+
+---
+
 ## What is AMP?
 
 AMP (Agent Memory Protocol) is an open, HTTP-native protocol for storing, retrieving,
 and sharing structured memory between AI agents across frameworks, vendors, and sessions.
+
+In plain words: **agents forget everything between sessions, and AMP is the shared
+notebook they can all use** — with rules about which agent may read each note, and
+notes that fade when they stop being useful.
 
 Agents read and write a shared memory tier using a standardized **Memory Cell** schema.
 AMP handles access control, semantic search, and decay-archival lifecycles out of the box.

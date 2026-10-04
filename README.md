@@ -1,151 +1,192 @@
-# AMP - Agent Memory Protocol
+# AMP — Agent Memory Protocol
 
-**An open protocol for AI agent memory interoperability.**
+**AI agents forget everything between sessions. AMP is a shared memory they can all use — with rules about who is allowed to read what, and memories that fade when they stop being useful.**
 
-Like MCP for tool calling - but for memory.
+It is an open protocol, not a product: a JSON schema for a memory, an HTTP API, a
+reference server you run yourself, client SDKs, and a test suite you can point at
+your own implementation.
+
+Like MCP, but for memory instead of tools.
 
 [![CI](https://github.com/glatinone/agent-memory-protocol/actions/workflows/ci.yml/badge.svg)](https://github.com/glatinone/agent-memory-protocol/actions/workflows/ci.yml)
 [![Docs](https://github.com/glatinone/agent-memory-protocol/actions/workflows/docs.yml/badge.svg)](https://glatinone.github.io/agent-memory-protocol/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Spec: v0.1.0](https://img.shields.io/badge/Spec-v0.1.0-green.svg)](spec/v0.1.0/memory-cell.schema.json)
 
-📖 **Documentation: [glatinone.github.io/agent-memory-protocol](https://glatinone.github.io/agent-memory-protocol/)**
+**📖 Documentation: [glatinone.github.io/agent-memory-protocol](https://glatinone.github.io/agent-memory-protocol/)** — the getting started guide, the API reference, and a plain-English walkthrough of the spec.
 
-> **Not yet on PyPI.** `pip install amp-client` in the steps below doesn't work yet - install
-> the SDK from source instead: `pip install -e sdk/` from a clone of this repo.
+![Three agents use one shared memory: one stores a preference, a second reads it, a third is refused — then the same query over HTTP returns a result for one agent and nothing for the other](docs/assets/amp-demo.gif)
 
----
-
-## What is AMP?
-
-AMP (Agent Memory Protocol) is an open, HTTP-native protocol for storing, retrieving, and sharing structured memory between AI agents across frameworks, vendors, and sessions. 
-
-With AMP, agents can read and write to a shared memory tier using a standardized **Memory Cell** schema. It handles built-in access control, decay-ranked semantic search, and an `active` → `stale` → `archived` decay lifecycle - the reference server runs the decay engine on a schedule by default (see the [FAQ](docs/faq.md#how-does-decay-work-in-plain-english) for the interval and how to disable it).
+*Real output from a real server, not a mock-up: `examples/multi-agent-demo` plus two
+`curl` calls. [How this animation is made](scripts/README.md) — and how to re-record it.*
 
 ---
 
-## See It In Action (Multi-Agent Sharing)
+## The problem, in plain words
 
-Here is a running console demo from `examples/multi-agent-demo/run_demo.py` showing two agents sharing memory context while a third unauthorized agent is blocked:
+Every AI agent starts each session with no memory of the last one. The usual
+workarounds are to paste notes into the prompt, or to let each framework keep its
+own private store. Both break down the moment more than one agent is involved:
+there is no shared place to put a fact, no way to say *this agent may read this and
+that one may not*, and no way for an old fact to stop being repeated forever.
 
-```text
-$ python examples/multi-agent-demo/run_demo.py
+AMP is the shared notebook:
 
-[AGENT A]
-CustomerServiceAgent received: 'User prefers email correspondence.'
-Stored preference memory ID: mem_01M405R0HS566J9DZDRESG4HV2
-
-[AGENT B]
-BillingAgent assisted user: user_123
-Retrieved response: "I see you prefer email, so I will send your bill there."
-
-[AGENT C]
-MarketingAgent try_access results: 0 memories retrieved
-Agent C retrieved 0 memories - access control working correctly
-
-[SUMMARY]
-AMP Demo complete. Two agents shared memory. One was blocked.
-```
+- **A memory is a small JSON document** — the text, who it is about, who may read
+  and write it, how important it is, where it came from.
+- **Any agent can use it, whatever framework it is built on.** One schema, over
+  HTTP, with a Python and a Node client provided.
+- **Access is per memory, not per database.** `readable_by` / `writable_by` say
+  which agents may see and change each one, with wildcards for families of agents.
+- **Memories fade on purpose.** A score built from importance and age moves a
+  memory from `active` to `stale` to `archived`, so recall stays about what still
+  matters instead of growing forever.
+- **Deleting is honest.** A deleted memory disappears from search immediately and
+  is then kept, unreadable, for a 30-day window before it can be erased for good —
+  which is what an audit and an accidental deletion both need.
 
 ---
 
-## Quick Start in 3 Steps
+## See it run
 
-Start the server, install the SDK client, and run the multi-agent demo in less than 5 minutes.
+No account, no service, nothing to sign up for.
 
-### Step 1: Install the SDK Client
-Not yet on PyPI - install from a clone of this repo:
 ```bash
-pip install -e sdk/
+# 1. run the reference server (Docker; server/README has the plain-python path)
+cd server && docker compose up -d
+
+# 2. run the demo the animation above shows
+cd examples/multi-agent-demo && pip install -r requirements.txt && python run_demo.py
 ```
 
-A Node.js client lives in `sdk/node/` and needs no dependencies at all (Node 18+
-ships `fetch`). See its [README](sdk/node/README.md).
+Then ask the same question as an agent that **may** read the memory, and as one
+that may not:
 
-### Step 2: Start the AMP Server
-You can run the reference server with Docker:
 ```bash
-cd server
-docker compose up -d
-```
-*Or run locally with Uvicorn:*
-```bash
-cd server
-pip install -e .
-uvicorn amp_server.main:app --host 127.0.0.1 --port 8765
+# allowed: the memory was shared with agent_billing_*
+curl -s http://localhost:8765/amp/v1/memories/search \
+  -H 'X-AMP-Agent-ID: agent_billing_v1' -H 'Content-Type: application/json' \
+  -d '{"query": "contact preference", "owner_id": "user_123", "limit": 3}'
+# -> {"results":[{"content":{"text":"User prefers email correspondence."}}],"returned":1,...}
+
+# refused: the same query, from an agent the memory was not shared with
+curl -s http://localhost:8765/amp/v1/memories/search \
+  -H 'X-AMP-Agent-ID: agent_marketing' -H 'Content-Type: application/json' \
+  -d '{"query": "contact preference", "owner_id": "user_123", "limit": 3}'
+# -> {"results":[],"returned":0,...}
 ```
 
-### Step 3: Run the Multi-Agent Demo
-Run the demo script to verify everything is wired up:
-```bash
-cd examples/multi-agent-demo
-pip install -r requirements.txt
-python run_demo.py
+The refusal is the point: no error to catch, no hint that the memory exists. An
+error saying "forbidden" would let a caller probe for memories it may not see.
+
+From code, the same thing:
+
+```python
+from amp_client import AMPClient
+
+client = AMPClient("http://localhost:8765", agent_id="agent_billing_v1")
+client.remember("User prefers email correspondence.", owner_id="user_123")
+for cell in client.recall("how does the user want to be contacted?", owner_id="user_123"):
+    print(cell["content"]["text"])
 ```
+
+Install it from a clone: `pip install -e sdk/`. The Node client in [`sdk/node/`](sdk/node/)
+needs no dependencies at all (Node 18+ has `fetch`).
 
 ---
 
-## Comparison
+## What is in the box
 
-| Feature | **AMP (Agent Memory Protocol)** | Raw HTTP + Vector DB | LangChain ConversationMemory | MCP (Model Context Protocol) |
-|---|---|---|---|---|
-| **Primary Focus** | AI agent long-term memory | Generic document/data search | Conversational chat history | Tool execution / state sharing |
-| **Open Standard Schema** | Yes (`MemoryCell` model) | No (ad-hoc document formats) | No (custom data classes) | No (focused on tool descriptions) |
-| **Lifecycle & Decay** | Yes (state-machine decay, run on a schedule by default, see [FAQ](docs/faq.md#how-does-decay-work-in-plain-english)) | No (requires custom code/cron) | No (requires manual management) | No |
-| **Per-Cell Access Policy** | Yes (built-in access control ACLs) | No (enforced at database layer) | No | No |
-| **Cross-Agent Sharing** | Yes (built-in out of the box) | No (requires custom middleware) | No (locked to single session/graph) | No |
-| **Client Type** | Multi-language SDKs (`amp-client` for Python and Node.js) | Custom db drivers | Framework-locked memory classes | Protocol-native client/server |
+| Piece | What it is | Where |
+|---|---|---|
+| **Specification** | The `MemoryCell` schema, the decay formula, the lifecycle state machine, the threat model | [`spec/v0.1.0/`](spec/v0.1.0/) · [explained in plain English](docs/spec-explained.md) |
+| **Reference server** | FastAPI, with your choice of storage: embedded ChromaDB, or PostgreSQL + `pgvector`. Includes an MCP server, so an LLM client can use memory as tools | [`server/`](server/) · [API reference](docs/api-reference.md) |
+| **Client SDKs** | Python (sync, async, LangChain) and Node (zero dependencies) | [`sdk/`](sdk/) |
+| **Conformance suite** | 38 checks to run against your own implementation. It imports nothing from this repo's server, so it judges your implementation rather than comparing it to ours | [`conformance/`](conformance/) |
+| **OpenAPI contract** | Generated from the server and committed, so an API change shows up as a reviewable diff | [`spec/v0.1.0/openapi.json`](spec/v0.1.0/openapi.json) |
+
+Implementing AMP yourself? `amp-conformance --base-url http://your-server` is the
+fastest way to know where you stand — one of its categories checks you against the
+numbers **your own** server advertises at `GET /spec`.
 
 ---
 
-## System Architecture
+## How it works
 
 ```mermaid
 graph TD
-    subgraph Agent Ecosystem
-        AgentA[Agent A: Customer Service]
-        AgentB[Agent B: Billing]
-        AgentC[Agent C: Marketing]
-    end
+    A[Agent A<br/>customer service] -- "1. store a memory, readable by billing" --> S[AMP server]
+    B[Agent B<br/>billing] -- "2. search for it" --> S
+    C[Agent C<br/>marketing] -- "3. run the same search" --> S
 
-    subgraph AMP Protocol Layer
-        Server[AMP FastAPI Server]
-        Auth[Access Control & Policy Guard]
-        Decay[Lifecycle & Decay Engine]
-    end
+    S --> P[Access policy, per memory]
+    P --> D[Lifecycle and decay]
+    D --> V[(Storage<br/>ChromaDB or PostgreSQL)]
+    D --> L[Background pass:<br/>active → stale → archived]
 
-    subgraph Storage Layer
-        DB[(ChromaDB Vector Store)]
-    end
-
-    AgentA -- 1. Store Memory X-AMP-Agent-ID: agent_a --> Server
-    AgentB -- 2. Recall Memory X-AMP-Agent-ID: agent_b --> Server
-    AgentC -- 3. Denied Access X-AMP-Agent-ID: agent_c --> Server
-
-    Server --> Auth
-    Auth --> Decay
-    Decay --> DB
+    S -.->|"empty result"| C
 ```
+
+An agent identifies itself with a header (`X-AMP-Agent-ID`) and every read and write
+is checked against that memory's own policy. Anything an agent may not read is
+simply absent from its results.
 
 ---
 
-## Protocol Specification
+## Why not just a vector database?
 
-AMP is a schema-first protocol. The complete specifications detailing core schemas and
-endpoint signatures live in [spec/v0.1.0/memory-cell.schema.json](spec/v0.1.0/memory-cell.schema.json);
-decay mathematical models and state machines are in [spec/v0.1.0/lifecycle.md](spec/v0.1.0/lifecycle.md).
+| | **AMP** | Raw HTTP + vector DB | Framework memory | MCP |
+|---|---|---|---|---|
+| **Built for** | agent long-term memory | document search | one chat's history | tools and state |
+| **Open schema** | yes, `MemoryCell` | no, ad-hoc | no, framework classes | no |
+| **Lifecycle and decay** | yes, built in | you write the cron job | manual | no |
+| **Per-memory access rules** | yes | at the database layer | no | no |
+| **Sharing between agents** | yes | custom middleware | locked to one session | no |
+| **Clients** | Python and Node | whatever you write | framework-locked | protocol-native |
 
-For more detailed guides and client references:
-- **Getting Started Guide**: [docs/getting-started.md](docs/getting-started.md)
-- **Protocol Specification Explained**: [docs/spec-explained.md](docs/spec-explained.md) (narrative walkthrough of the raw spec above)
-- **API Reference**: [docs/api-reference.md](docs/api-reference.md)
-- **FAQ**: [docs/faq.md](docs/faq.md)
-- **Conformance Suite**: [conformance/](conformance/) - the runnable definition of "implements AMP". Runnable against any server: `amp-conformance --base-url http://localhost:8765`
-- **Contributing Guide**: [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md)
-- **Code Examples**: [examples/](examples/)
+---
+
+## Where to go next
+
+- **[Documentation site](https://glatinone.github.io/agent-memory-protocol/)** — everything below, rendered
+- **[Getting started](docs/getting-started.md)** — server, SDK, embedding provider, storage backend, API keys
+- **[API reference](docs/api-reference.md)** — every endpoint, plus the error contract
+- **[Spec, explained](docs/spec-explained.md)** — the schema and the decay formula without the formal notation
+- **[FAQ](docs/faq.md)** — including [how decay works in plain English](docs/faq.md#how-does-decay-work-in-plain-english)
+- **[Release notes](docs/release-notes-v0.1.0.md)** — what is in this version, and what is not
+- **[Conformance suite](conformance/README.md)** — for people implementing AMP themselves
+- **[Contributing](.github/CONTRIBUTING.md)** — including the rule that every test file must pass on its own
+- **[Security](SECURITY.md)** — how to report a problem, and what is in scope
+- **[Examples](examples/)** — multi-agent demo, MCP config for Claude Desktop, quickstart
+
+---
+
+## Honest limits
+
+Worth reading before you build on this:
+
+- **The SDKs are not published yet.** Install from a clone: `pip install -e sdk/`, or
+  copy `sdk/node/`. `pip install amp-client` does not work.
+- **There is no hosted service.** You run the server. That is deliberate: your
+  memory stays yours while the protocol gets tested.
+- **Authentication is opt-in, and keys only.** By default the server trusts the
+  agent-id header — fine on a network you control, not on the open internet. Set
+  `AMP_API_KEYS_FILE` and a key becomes required; there are no scopes, expiry or
+  rotation yet.
+- **The MCP binding is one agent per server** unless you set `AMP_MCP_AGENT_ID`, so
+  run one per agent if you want per-agent rules to mean anything.
+- **The decay pass and the scoring-edit budget are per process.** Two servers over
+  one database keep two of each.
+- **PostgreSQL support is proven in CI, not on every machine.** The machine this was
+  developed on has no PostgreSQL, so the storage contract suite runs against a real
+  `pgvector` container in CI and skips locally.
+
+248 server tests, 34 Python SDK tests, 24 Node tests and 38 conformance vectors run
+in CI across Python 3.11/3.12 and Node 18/20/22, with lint, format and type gates on
+every package.
 
 ---
 
 ## License
 
-AMP is open source and available under the [MIT License](LICENSE).
+MIT — see [LICENSE](LICENSE).

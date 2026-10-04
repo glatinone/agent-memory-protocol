@@ -1,0 +1,38 @@
+# Demo transcript for the README animation.
+#
+# Every line below is real output, captured from a real server. The ids and the
+# cell id inside are from one recording; nothing here is invented. See
+# scripts/make_demo_gif.py for how this becomes docs/assets/amp-demo.gif, and
+# scripts/README.md for how to re-record it.
+#
+# Format, read by that script:
+#   "$ "  a command line, typed out character by character
+#   "* "  an output line drawn in the accent colour (a result worth noticing)
+#   "# "  a comment, ignored
+#   ""    a blank line, which becomes a short pause
+#   else  output, revealed one line at a time
+
+$ python examples/multi-agent-demo/run_demo.py
+
+[AGENT A] CustomerServiceAgent stores a preference
+Stored memory id: mem_01M42ZDQ4J4Z1CHAZFX21SJKGV
+
+[AGENT B] BillingAgent asks for it
+Retrieved: "I see you prefer email, so I will send your bill there."
+* Agent B: 1 memory retrieved
+
+[AGENT C] MarketingAgent asks for the same thing
+MarketingAgent try_access results: 0 memories retrieved
+* Agent C: 0 memories retrieved - access control working correctly
+
+$ curl -s http://localhost:8765/amp/v1/memories/search \
+    -H 'X-AMP-Agent-ID: agent_billing_v1' -H 'Content-Type: application/json' \
+    -d '{"query": "contact preference", "owner_id": "user_123", "limit": 3}'
+* {"results":[{"content":{"text":"User prefers email correspondence."}}],"returned":1}
+
+$ curl -s http://localhost:8765/amp/v1/memories/search \
+    -H 'X-AMP-Agent-ID: agent_marketing' -H 'Content-Type: application/json' \
+    -d '{"query": "contact preference", "owner_id": "user_123", "limit": 3}'
+* {"results":[],"returned":0} - the same query, from the agent that may not read it
+
+$ echo done - the whole thing runs on your machine, no service, no account

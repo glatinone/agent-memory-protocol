@@ -239,6 +239,17 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   shared name so nothing breaks - and the getting-started config and the example
   `mcp_config.json` both set it.
 
+- **A picture on the front page, and a README that starts in plain words.** The
+  README opened with "an open protocol for AI agent memory interoperability" and a
+  wall of text, which is a fine sentence for somebody who already knows what a
+  protocol is. It now opens with what a memory is, why agents need one, and a
+  short animation of the thing running. The animation is generated from a recorded
+  transcript (`scripts/make_demo_gif.py` + `docs/assets/demo-transcript.txt`) so it
+  can be reviewed and re-recorded like any other file rather than being a binary
+  nobody can update; the transcript is real output from a real server, and the
+  generator refuses to draw a line that would be clipped or to accept a transcript
+  line that is a near-miss of the format.
+
 ### Changed
 - **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a
   conflict with `{"detail": ...}` while `DELETE` answered with
