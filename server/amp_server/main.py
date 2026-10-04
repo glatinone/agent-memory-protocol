@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
+import re
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, FastAPI, Header, Query, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 
 from amp_server.access_control import check_read_access, check_write_access
@@ -23,6 +27,7 @@ from amp_server.errors import (
     missing_agent_id,
     rate_limited,
     unauthenticated,
+    validation_error,
 )
 from amp_server.lifecycle import LifecycleEngine
 from amp_server.limits import MAX_CELL_SIZE_BYTES
@@ -227,7 +232,71 @@ async def lifespan(app: FastAPI):
 # App & router
 # ---------------------------------------------------------------------------
 
-app = FastAPI(
+
+def document_the_error_envelope(schema: dict[str, Any]) -> dict[str, Any]:
+    """Point every 422 in a generated contract at the body this server returns.
+
+    FastAPI documents its own validation error shape (`{"detail": [...]}`) on every
+    route that can reject input, which is not what comes back here - see
+    `_request_validation_handler`. The committed contract is meant to be the truth a
+    client generator builds from, so the 422 is rewritten to the protocol's envelope
+    in one place instead of being declared route by route.
+    """
+    for operations in schema.get("paths", {}).values():
+        for operation in operations.values():
+            responses = operation.get("responses", {})
+            if "422" in responses:
+                responses["422"] = {
+                    "description": (
+                        "Request validation failed; error.code is VALIDATION_ERROR "
+                        "and error.details.errors lists the fields"
+                    ),
+                    "content": {
+                        "application/json": {
+                            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+                        }
+                    },
+                }
+    _drop_unreferenced_schemas(schema)
+    return schema
+
+
+def _drop_unreferenced_schemas(schema: dict[str, Any]) -> None:
+    """Remove component schemas nothing points at any more.
+
+    Rewriting the 422 leaves FastAPI's own `HTTPValidationError` and the
+    `ValidationError` it is built from defined but unused. Nothing breaks with them
+    there, and they are still worth removing: the contract is what a client
+    generator reads, and a component describing a body this server never sends is
+    how a wrong error type ends up in somebody's client.
+
+    Refs are collected from the whole document, not from the components block -
+    most of them live in the paths - and the loop repeats because dropping one
+    schema can orphan another.
+    """
+    schemas = schema.get("components", {}).get("schemas", {})
+    while True:
+        referenced = {
+            match.group(1)
+            for match in re.finditer(
+                r"#/components/schemas/([A-Za-z0-9_.-]+)", json.dumps(schema)
+            )
+        }
+        orphans = [name for name in schemas if name not in referenced]
+        if not orphans:
+            return
+        for name in orphans:
+            del schemas[name]
+
+
+class AMPFastAPI(FastAPI):
+    """FastAPI, with a contract that matches the errors this server sends."""
+
+    def openapi(self) -> dict[str, Any]:
+        return document_the_error_envelope(super().openapi())
+
+
+app = AMPFastAPI(
     title="AMP Server",
     version=AMP_VERSION,
     description="Agent Memory Protocol reference server implementation",
@@ -254,6 +323,26 @@ async def _amp_error_handler(request: Request, exc: AMPError) -> JSONResponse:
         status_code=exc.status_code,
         content=exc.to_response(),
         headers=exc.headers or None,
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def _request_validation_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    """Answer a rejected request body with the protocol's own error shape.
+
+    FastAPI raises this before a route runs, so it never reached the AMPError
+    handler above: a malformed body came back as `{"detail": [...]}` while every
+    other error used `{"error": {...}}`. Both SDKs read `error.code`, so a caller
+    that sent a bad field got "HTTP error 422" and no idea which field - the same
+    class of bug the single error shape was introduced to remove. The field errors
+    move into `details`, and `jsonable_encoder` keeps a rejected value that is not
+    JSON-serialisable (a bytes body, say) from turning this handler into a 500.
+    """
+    return JSONResponse(
+        status_code=422,
+        content=validation_error(jsonable_encoder(exc.errors())).to_response(),
     )
 
 

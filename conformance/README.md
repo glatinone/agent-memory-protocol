@@ -49,7 +49,7 @@ into CI.
 |---|---|---|
 | `schema` | no | Standalone `MemoryCell` documents against `spec/v0.1.0/memory-cell.schema.json`, both documents that must validate and documents that must not. |
 | `decay` | no | `decay_score = importance x confidence x e^(-decay_rate x delta_days)` recomputed from `spec/v0.1.0/lifecycle.md`, including the stale threshold at `0.3` and the half-life. |
-| `http_contract` | yes | Status codes and error bodies: a missing agent identity is `401`, an unknown cell is `403` and never `404`, only an archived cell can be deleted, an archived cell cannot return to `active`, and a write cannot reach `deleted`. |
+| `http_contract` | yes | Status codes and error bodies: a missing agent identity is `401`, an unknown cell is `403` and never `404`, only an archived cell can be deleted, an archived cell cannot return to `active`, a write cannot reach `deleted`, and a body the schema rejects answers the same `{\"error\": {\"code\", \"message\", \"details\"}}` envelope as everything else rather than a framework's default shape. |
 | `access_control` | yes | The read and write decision for every agent in a policy matrix, checked through three surfaces at once: `GET` (read), `PATCH` (write) and `POST /memories/search` (read through the ranking path). |
 | `spec_capabilities` | yes | The declarations at `GET /spec`, against the server's own numbers: an advertised `max_cell_size_bytes` has to be the actual maximum, an advertised `manual_run_endpoint` has to be a route that exists, and `/spec` and `/health` have to agree on the version. |
 

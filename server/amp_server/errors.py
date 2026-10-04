@@ -75,6 +75,21 @@ def unauthenticated() -> AMPError:
     )
 
 
+def validation_error(field_errors: list[dict[str, Any]]) -> AMPError:
+    """A request body the schema rejects (spec §8.1).
+
+    The per-field detail goes in `details.errors`, which is what `details` is for:
+    a caller needs to know which field was wrong, and the protocol needs one error
+    shape on every response.
+    """
+    return AMPError(
+        422,
+        "VALIDATION_ERROR",
+        "Request validation failed",
+        details={"errors": field_errors},
+    )
+
+
 def rate_limited(retry_after_seconds: int) -> AMPError:
     """Too many scoring edits on one cell (RFC §5: decay-score manipulation).
 

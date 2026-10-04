@@ -735,4 +735,8 @@ All error responses use the following structure:
 |-------|-------------|
 | `error.code` | Machine-readable error code in `SCREAMING_SNAKE_CASE` |
 | `error.message` | Human-readable description |
-| `error.details` | Optional structured context (field errors, etc.) |
+| `error.details` | Optional structured context. The one field-errors case is a body the schema rejects: `422 VALIDATION_ERROR` carries `details.errors`, a list of `{type, loc, msg, input}` entries, so a caller can see which field was wrong |
+
+A request body that fails validation never reaches a route, so it is worth saying
+explicitly: it uses this same envelope. `error.code` there is `VALIDATION_ERROR`
+and the per-field detail is in `error.details.errors`.

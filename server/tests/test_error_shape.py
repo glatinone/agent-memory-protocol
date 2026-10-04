@@ -75,6 +75,46 @@ async def test_invalid_transition_uses_the_error_envelope(app_client):
     _assert_error_envelope(resp.json(), "INVALID_TRANSITION")
 
 
+@pytest.mark.asyncio
+async def test_a_rejected_body_uses_the_error_envelope(app_client):
+    """The framework's own validation error is part of the wire contract too.
+
+    A malformed body never reaches a route, so it never passed through AMPError -
+    it answered with FastAPI's `{"detail": [...]}` while everything else used
+    `{"error": {...}}`. Both SDKs read `error.code`, so a caller that sent a bad
+    field got a generic "HTTP error 422" and no idea which field was wrong.
+    """
+    resp = await app_client.post(
+        "/amp/v1/memories", headers=_HEADERS, json={"type": "semantic"}
+    )
+
+    assert resp.status_code == 422
+    _assert_error_envelope(resp.json(), "VALIDATION_ERROR")
+    assert "detail" not in resp.json()
+
+
+@pytest.mark.asyncio
+async def test_a_rejected_body_names_the_field_that_was_wrong(app_client):
+    """`details` carries the field errors, which is what `details` is for."""
+    resp = await app_client.post(
+        "/amp/v1/memories", headers=_HEADERS, json={"type": "semantic"}
+    )
+
+    errors = resp.json()["error"]["details"]["errors"]
+    locations = {".".join(str(part) for part in error["loc"]) for error in errors}
+    assert "body.content" in locations
+    assert "body.identity" in locations
+
+
+@pytest.mark.asyncio
+async def test_an_out_of_range_page_size_uses_the_error_envelope(app_client):
+    """Every route that validates a parameter answers the same way."""
+    resp = await app_client.get("/amp/v1/memories?limit=1000000", headers=_HEADERS)
+
+    assert resp.status_code == 422
+    _assert_error_envelope(resp.json(), "VALIDATION_ERROR")
+
+
 def test_every_error_helper_serialises_to_the_same_envelope():
     """The helpers are the only source of protocol errors, so they must agree."""
     cases = [

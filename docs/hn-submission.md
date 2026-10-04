@@ -24,7 +24,7 @@ AMP decouples memory from agent frameworks by defining:
 We've launched the v0.1.0 specification along with:
 - **Reference Server (Python/FastAPI):** ChromaDB by default with no infrastructure, or PostgreSQL + pgvector (`AMP_STORAGE_BACKEND=postgres`) if you already run one. It exposes MCP tools (`amp_remember`, `amp_recall`, ...), so you can connect it directly to Claude Desktop out of the box.
 - **Python SDK (`amp-client`)** with sync, async, and LangChain memory integrations, plus a **zero-dependency Node client**. Neither is published yet; both install from the repo.
-- **A conformance suite** (38 vectors) you can run against your own implementation: `amp-conformance --base-url https://your-server.example.com`. It imports nothing from the reference server, and one category measures a server against its own advertised numbers.
+- **A conformance suite** (39 vectors) you can run against your own implementation: `amp-conformance --base-url https://your-server.example.com`. It imports nothing from the reference server, and one category measures a server against its own advertised numbers.
 - **Multi-Agent Demo:** an example showing CustomerService and Billing agents sharing memory context, while a Marketing agent is blocked by cell-level access policies.
 
 We'd love to hear your feedback on the schema design and protocol specification:

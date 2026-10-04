@@ -250,6 +250,18 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   generator refuses to draw a line that would be clipped or to accept a transcript
   line that is a near-miss of the format.
 
+- **A rejected request body now uses the protocol's error shape.** FastAPI raises
+  `RequestValidationError` before a route runs, so it never passed through
+  `AMPError`: a malformed body answered `{"detail": [...]}` while every other error
+  answered `{"error": {"code", "message", "details"}}`. The API reference
+  documented `422 VALIDATION_ERROR` all along, and both SDKs read `error.code` - so
+  a caller that sent a bad field got a generic "HTTP error 422" and no idea which
+  field was wrong, which is the same failure the single error shape was introduced
+  to remove. The field errors now ride in `error.details.errors`, a rejected value
+  that is not JSON-serialisable cannot turn the handler into a 500, and the
+  conformance suite gained a vector so any implementation is held to the same
+  shape (39 vectors now).
+
 ### Changed
 - **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a
   conflict with `{"detail": ...}` while `DELETE` answered with

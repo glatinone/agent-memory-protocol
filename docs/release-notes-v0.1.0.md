@@ -53,7 +53,7 @@ released together.
 - Bundled MCP server (`amp-mcp`) so the server can be used as MCP tools.
 
 **Conformance suite (`conformance/`)**
-- 38 vectors an implementation can run against its own server:
+- 39 vectors an implementation can run against its own server:
   `amp-conformance --base-url https://your-server.example.com`.
 - It imports nothing from the reference server and carries the normative JSON
   Schema, so it judges an implementation rather than comparing it to this one.
@@ -74,7 +74,7 @@ released together.
 **Examples** under `examples/`: a quickstart, an MCP `claude-desktop` config,
 and a multi-agent demo where one agent is blocked by cell-level access policy.
 
-241 server tests, 31 Python SDK tests, 22 Node tests and 38 conformance vectors.
+248 server tests, 34 Python SDK tests, 24 Node tests and 39 conformance vectors.
 CI runs lint, format and type gates across every package, Python 3.11 and 3.12,
 Node 18, 20 and 22, the storage contract suite against a real PostgreSQL service
 container, and the conformance suite against a live server.

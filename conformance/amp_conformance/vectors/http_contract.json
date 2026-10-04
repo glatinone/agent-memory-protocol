@@ -265,6 +265,25 @@
           "expect": {"status": 409, "error_code": "INVALID_TRANSITION"}
         }
       ]
+    },
+    {
+      "id": "rejected-body-uses-the-error-envelope",
+      "steps": [
+        {
+          "request": {
+            "method": "POST",
+            "path": "/memories",
+            "headers": {"X-AMP-Agent-ID": "agent-conformance"},
+            "json": {"type": "semantic"}
+          },
+          "expect": {
+            "status": 422,
+            "error_code": "VALIDATION_ERROR",
+            "has_fields": ["error"],
+            "json_equals": {"error.code": "VALIDATION_ERROR"}
+          }
+        }
+      ]
     }
   ]
 }

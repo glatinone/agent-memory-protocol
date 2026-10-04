@@ -102,7 +102,7 @@ needs no dependencies at all (Node 18+ has `fetch`).
 | **Specification** | The `MemoryCell` schema, the decay formula, the lifecycle state machine, the threat model | [`spec/v0.1.0/`](spec/v0.1.0/) · [explained in plain English](docs/spec-explained.md) |
 | **Reference server** | FastAPI, with your choice of storage: embedded ChromaDB, or PostgreSQL + `pgvector`. Includes an MCP server, so an LLM client can use memory as tools | [`server/`](server/) · [API reference](docs/api-reference.md) |
 | **Client SDKs** | Python (sync, async, LangChain) and Node (zero dependencies) | [`sdk/`](sdk/) |
-| **Conformance suite** | 38 checks to run against your own implementation. It imports nothing from this repo's server, so it judges your implementation rather than comparing it to ours | [`conformance/`](conformance/) |
+| **Conformance suite** | 39 checks to run against your own implementation. It imports nothing from this repo's server, so it judges your implementation rather than comparing it to ours | [`conformance/`](conformance/) |
 | **OpenAPI contract** | Generated from the server and committed, so an API change shows up as a reviewable diff | [`spec/v0.1.0/openapi.json`](spec/v0.1.0/openapi.json) |
 
 Implementing AMP yourself? `amp-conformance --base-url http://your-server` is the
@@ -181,7 +181,7 @@ Worth reading before you build on this:
   developed on has no PostgreSQL, so the storage contract suite runs against a real
   `pgvector` container in CI and skips locally.
 
-248 server tests, 34 Python SDK tests, 24 Node tests and 38 conformance vectors run
+248 server tests, 34 Python SDK tests, 24 Node tests and 39 conformance vectors run
 in CI across Python 3.11/3.12 and Node 18/20/22, with lint, format and type gates on
 every package.
 
