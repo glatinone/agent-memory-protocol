@@ -52,8 +52,9 @@ AMP is the shared notebook:
 No account, no service, nothing to sign up for.
 
 ```bash
-# 1. run the reference server (Docker; server/README has the plain-python path)
+# 1. run the reference server
 cd server && docker compose up -d
+# no Docker? docs/getting-started.md has the two-line plain-python path
 
 # 2. run the demo the animation above shows
 cd examples/multi-agent-demo && pip install -r requirements.txt && python run_demo.py

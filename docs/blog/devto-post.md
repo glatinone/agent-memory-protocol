@@ -18,7 +18,7 @@ Anthropic's Model Context Protocol already solved the other half of this problem
 
 ## What I actually built
 
-![Three agents from different frameworks talking to one AMP server over HTTP, which keeps cells in ChromaDB or PostgreSQL](FIGURE_ARCHITECTURE_PLACEHOLDER)
+![Three agents from different frameworks talking to one AMP server over HTTP, which keeps cells in ChromaDB or PostgreSQL](https://raw.githubusercontent.com/glatinone/agent-memory-protocol/master/docs/assets/blog/amp-architecture.png)
 
 Three pieces, and I worked hard not to add a fourth.
 
@@ -46,7 +46,7 @@ Multi-agent memory only gets interesting when agents share it, and sharing needs
 
 Wildcards work, `public` defaults to false, and an agent that may not read a cell gets the same `403` whether the cell exists or not. That last part is deliberate. If invisible and deleted answered differently, error codes would become a way to probe for data you are not allowed to read.
 
-![Agent A stores a preference, agent B reads it and gets 200 with one memory, agent C asks the same question and gets 403 with zero memories](FIGURE_ACCESS_PLACEHOLDER)
+![Agent A stores a preference, agent B reads it and gets 200 with one memory, agent C asks the same question and gets 403 with zero memories](https://raw.githubusercontent.com/glatinone/agent-memory-protocol/master/docs/assets/blog/amp-access.png)
 
 The demo in the repo runs exactly that scene with real agents: customer service stores a preference, billing reads it back, marketing asks the same question and gets nothing.
 
@@ -56,7 +56,7 @@ The demo in the repo runs exactly that scene with real agents: customer service 
 
 Every cell has an importance score and a decay rate. The reference server runs a job that walks cells through `active`, then `stale`, then `archived` as the score drops, with the thresholds written down rather than buried in code (stale below 0.3, archived after 30 days). You can change the interval, or turn the job off and trigger runs yourself through an admin endpoint.
 
-![Importance score falling over 60 days, crossing the 0.3 stale threshold and the 30 day archive threshold into the archived region](FIGURE_DECAY_PLACEHOLDER)
+![Importance score falling over 60 days, crossing the 0.3 stale threshold and the 30 day archive threshold into the archived region](https://raw.githubusercontent.com/glatinone/agent-memory-protocol/master/docs/assets/blog/amp-decay.png)
 
 I also gave it a floor: a purge refuses to delete a cell inside a 30 day retention window, because "we keep your data for 30 days" is a promise you make to whoever stored it.
 
