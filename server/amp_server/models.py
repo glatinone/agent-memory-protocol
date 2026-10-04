@@ -173,8 +173,17 @@ class SearchRequest(BaseModel):
 
 
 class SearchResponse(BaseModel):
+    """Search results for one page.
+
+    `returned` is the size of this page, not the number of cells that matched:
+    the field was called `total` and documented as "may exceed `limit`", which it
+    never could, because the value is the length of the list beside it. A name
+    that promises a count the server does not compute is worse than no count.
+    Paging a search is a v0.2 question; the adapter returns one page.
+    """
+
     results: list[MemoryCell]
-    total: int
+    returned: int
     query: str
 
 

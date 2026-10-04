@@ -124,6 +124,23 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   dependency rather than in each handler, so a route cannot resolve an agent
   without proving it.
 
+- **Paging on the listing endpoints, applied to cells the caller may read.**
+  `GET /memories` (and its `/memories/query` alias) gained `offset`, and `limit`
+  now counts cells the caller is allowed to read rather than cells examined. The
+  old order - page the store, then filter by access - let a page come back short
+  while readable cells sat just past the store-level limit, with no way for the
+  caller to tell that from "that is all there is". Responses now report
+  `returned` and `has_more` alongside the window used. The `total` field is gone
+  from both listing and search responses: it was the size of the page just
+  returned, and the search documentation described it as "total number of cells
+  matched (may exceed `limit`)" - a number the code never produced. `GET /spec`
+  advertises `max_page_size`, and a larger `limit` is refused rather than clamped.
+- **`GET /memories/query` was unreachable.** FastAPI matches routes in
+  registration order, and `/memories/{memory_id}` was declared before the static
+  alias, so the alias was read as a memory id named "query" and answered `403`.
+  It is now declared first, with a comment saying why the order matters; a test
+  catches the next route that forgets.
+
 ### Changed
 - **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a
   conflict with `{"detail": ...}` while `DELETE` answered with

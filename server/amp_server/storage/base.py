@@ -83,8 +83,15 @@ class StorageAdapter(ABC):
         types: list[MemoryType] | None,
         status: list[LifecycleStatus] | None,
         limit: int,
+        offset: int = 0,
     ) -> list[MemoryCell]:
-        """Filter MemoryCells by structured criteria without semantic search."""
+        """Filter MemoryCells by structured criteria without semantic search.
+
+        `limit` and `offset` window the *filtered* result, so a caller can page
+        through it. They count cells matching the criteria, not cells examined,
+        and every backend must window the same way or a page means something
+        different depending on where the data lives.
+        """
 
     @abstractmethod
     async def list_by_owner(self, owner_id: str) -> list[MemoryCell]:

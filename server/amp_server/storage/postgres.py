@@ -294,6 +294,7 @@ class PostgresAdapter(StorageAdapter):
         types: list[MemoryType] | None,
         status: list[LifecycleStatus] | None,
         limit: int,
+        offset: int = 0,
     ) -> list[MemoryCell]:
         """Filter cells by structured criteria without semantic search."""
         conditions: list[str] = []
@@ -308,10 +309,12 @@ class PostgresAdapter(StorageAdapter):
             conditions.append("status = ANY(%s::text[])")
             params.append([s.value for s in status])
         where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-        params.append(limit)
+        params.extend((limit, offset))
 
         with self._connection.cursor() as cursor:
-            cursor.execute(f"SELECT cell FROM {self._table} {where} LIMIT %s", params)
+            cursor.execute(
+                f"SELECT cell FROM {self._table} {where} LIMIT %s OFFSET %s", params
+            )
             rows = cursor.fetchall()
         return [deserialize_cell(row[0]) for row in rows]
 

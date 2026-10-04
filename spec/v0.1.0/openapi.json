@@ -597,6 +597,7 @@
     },
     "/amp/v1/memories": {
       "get": {
+        "description": "List memory cells, one page at a time.\n\n`limit` counts cells this caller may read, and `offset` indexes that same\nreadable stream; `has_more` says whether the next page holds anything. The\nresponse used to report `total`, which was the size of the page it had just\nreturned - a number that read like a count of matches and was not one. A real\ncount is not available without scanning the store on every call, so the field\nis gone rather than kept and distrusted.",
         "operationId": "query_memories_amp_v1_memories_get",
         "parameters": [
           {
@@ -653,7 +654,20 @@
             "required": false,
             "schema": {
               "default": 20,
+              "maximum": 100,
+              "minimum": 1,
               "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
               "type": "integer"
             }
           },
@@ -821,6 +835,7 @@
     },
     "/amp/v1/memories/query": {
       "get": {
+        "description": "List memory cells, one page at a time.\n\n`limit` counts cells this caller may read, and `offset` indexes that same\nreadable stream; `has_more` says whether the next page holds anything. The\nresponse used to report `total`, which was the size of the page it had just\nreturned - a number that read like a count of matches and was not one. A real\ncount is not available without scanning the store on every call, so the field\nis gone rather than kept and distrusted.",
         "operationId": "query_memories_amp_v1_memories_query_get",
         "parameters": [
           {
@@ -877,7 +892,20 @@
             "required": false,
             "schema": {
               "default": 20,
+              "maximum": 100,
+              "minimum": 1,
               "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
               "type": "integer"
             }
           },

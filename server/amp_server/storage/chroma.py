@@ -246,16 +246,26 @@ class ChromaAdapter(StorageAdapter):
         types: list[MemoryType] | None,
         status: list[LifecycleStatus] | None,
         limit: int,
+        offset: int = 0,
     ) -> list[MemoryCell]:
-        """Filter cells by structured criteria without semantic search."""
+        """Filter cells by structured criteria without semantic search.
+
+        One pass over the collection: the metadata filter is applied in Python
+        because the whole cell is stored as a single JSON blob (Chroma metadata
+        holds scalars only), so there is no field for the store to filter on.
+        """
         all_cells = await self.list_all()
         result: list[MemoryCell] = []
+        matched = 0
         for cell in all_cells:
             if owner_id and cell.identity.owner_id != owner_id:
                 continue
             if types and cell.type not in types:
                 continue
             if status and cell.lifecycle.status not in status:
+                continue
+            matched += 1
+            if matched <= offset:
                 continue
             result.append(cell)
             if len(result) >= limit:

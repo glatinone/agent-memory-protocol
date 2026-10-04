@@ -90,7 +90,7 @@ async def test_a_cell_over_the_advertised_maximum_is_refused_and_not_stored():
             "/amp/v1/memories", headers=_HEADERS, params={"owner_id": "user-limits"}
         )
 
-    assert listing.json()["total"] == 0
+    assert listing.json()["returned"] == 0
 
 
 @pytest.mark.asyncio

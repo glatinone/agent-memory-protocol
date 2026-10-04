@@ -84,7 +84,7 @@ curl -X POST http://localhost:8765/amp/v1/memories/search \
   "results": [
     { "id": "mem_01J5A3B7K9M2N4P6Q8R0S1T3V5", "content": { "text": "User prefers Python for backend development" } }
   ],
-  "total": 1,
+  "returned": 1,
   "query": "what language does the user prefer?"
 }
 ```

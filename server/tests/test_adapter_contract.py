@@ -339,6 +339,39 @@ async def test_query_filters_by_owner_type_and_status(adapter):
 
 
 @pytest.mark.asyncio
+async def test_query_windows_the_filtered_result(adapter):
+    """`offset` pages through matches, identically on every backend.
+
+    Identical matters: a client that pages one backend and then another must see
+    the same cells in the same order, so the window is over the *filtered* set.
+    """
+    stored = []
+    for index in range(5):
+        cell = make_cell(owner_id=_OWNER, created_by=_CREATOR, text=f"windowed {index}")
+        await adapter.save(cell)
+        stored.append(cell.id)
+    # A cell that does not match, so the window cannot be over all rows.
+    await adapter.save(
+        make_cell(owner_id="user-other", created_by=_CREATOR, text="other")
+    )
+
+    first = await adapter.query(
+        owner_id=_OWNER, types=None, status=None, limit=2, offset=0
+    )
+    second = await adapter.query(
+        owner_id=_OWNER, types=None, status=None, limit=2, offset=2
+    )
+    beyond = await adapter.query(
+        owner_id=_OWNER, types=None, status=None, limit=2, offset=99
+    )
+
+    assert [len(first), len(second)] == [2, 2]
+    assert {c.id for c in first} | {c.id for c in second} <= set(stored)
+    assert not ({c.id for c in first} & {c.id for c in second})
+    assert beyond == []
+
+
+@pytest.mark.asyncio
 async def test_list_by_owner_and_list_all_agree(adapter):
     await adapter.save(make_cell(owner_id=_OWNER, created_by=_CREATOR, text="mine"))
     await adapter.save(

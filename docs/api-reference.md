@@ -158,6 +158,7 @@ suite checks it against the server's own numbers rather than a fixed value:
 | Capability | What it commits the server to |
 |---|---|
 | `mcp_compatible` | Whether **this HTTP server** speaks MCP directly. It is `false`: the MCP integration ships as a separate stdio process (`amp-mcp`, see `examples/mcp-claude-desktop/`), not as an endpoint on this API. |
+| `max_page_size` | The largest `limit` the listing endpoints accept (`100`). A larger value is refused with `422` rather than silently clamped, so a client never believes it received a complete page when it did not. |
 | `api_keys_required` | Whether this server requires `X-AMP-API-Key` (`AMP_API_KEYS_FILE` is set). Reported here so a client learns it needs a key before a call fails with `401`. |
 | `storage_backends` | The adapter actually wired in (`chroma` or `postgres`), selected with `AMP_STORAGE_BACKEND`; see [getting started](getting-started.md#6-choosing-a-storage-backend). |
 | `embedding` | Which provider turns text into vectors, and the width of the vectors it produces (`null` when the service decides per request). Configured with `AMP_EMBEDDING_PROVIDER`; see [getting started](getting-started.md#5-choosing-an-embedding-provider). |
@@ -568,7 +569,7 @@ curl -X POST http://localhost:8765/amp/v1/memories/search \
 | Field | Description |
 |-------|-------------|
 | `results` | Array of matching `MemoryCell` objects, ordered by relevance |
-| `total` | Total number of cells matched (may exceed `limit`) |
+| `returned` | The number of cells in this page, bounded by the request's `limit`. It is not a count of everything that matched - the server does not compute one. |
 | `query` | The query string echoed back |
 
 **Error responses**

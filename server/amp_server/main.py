@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, FastAPI, Header, Request
+from fastapi import APIRouter, Depends, FastAPI, Header, Query, Request
 from fastapi.responses import JSONResponse, Response
 
 from amp_server.access_control import check_read_access, check_write_access
@@ -40,6 +40,7 @@ from amp_server.models import (
     SearchRequest,
     SearchResponse,
 )
+from amp_server.paging import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, readable_page
 from amp_server.scheduler import lifecycle_loop, run_lifecycle, settings_from_env
 from amp_server.storage.base import (
     InvalidTransitionError,
@@ -286,6 +287,7 @@ async def spec() -> dict[str, Any]:
             # Open endpoint on purpose: a client can find out it needs a key
             # before it makes a call that would fail with 401.
             "api_keys_required": _api_key_store is not None,
+            "max_page_size": MAX_PAGE_SIZE,
             "embedding": get_storage().embedding,
             "max_cell_size_bytes": MAX_CELL_SIZE_BYTES,
             "retention_days": get_storage().retention_days,
@@ -366,6 +368,50 @@ async def create_memory(
     )
     await storage.save(cell)
     return cell.model_dump(mode="json")
+
+
+# Declared before `/memories/{memory_id}`: FastAPI matches routes in
+# registration order, so a parameterised path declared first swallows the
+# static ones - `/memories/query` was being read as a memory id named
+# "query" and answered 403, making the documented alias unreachable.
+@router.get("/memories", responses=_UNAUTHENTICATED | _MISSING_AGENT_ID)
+@router.get("/memories/query", responses=_UNAUTHENTICATED | _MISSING_AGENT_ID)
+async def query_memories(
+    owner_id: str | None = None,
+    type: MemoryType | None = None,
+    status: LifecycleStatus | None = None,
+    limit: int = Query(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+    offset: int = Query(default=0, ge=0),
+    x_amp_agent_id: str | None = Depends(verified_agent_id),
+) -> dict[str, Any]:
+    """List memory cells, one page at a time.
+
+    `limit` counts cells this caller may read, and `offset` indexes that same
+    readable stream; `has_more` says whether the next page holds anything. The
+    response used to report `total`, which was the size of the page it had just
+    returned - a number that read like a count of matches and was not one. A real
+    count is not available without scanning the store on every call, so the field
+    is gone rather than kept and distrusted.
+    """
+    if not x_amp_agent_id:
+        raise missing_agent_id()
+
+    page, has_more = await readable_page(
+        get_storage(),
+        agent_id=x_amp_agent_id,
+        owner_id=owner_id,
+        types=[type] if type else None,
+        status=[status] if status else [LifecycleStatus.ACTIVE],
+        limit=limit,
+        offset=offset,
+    )
+    return {
+        "results": [c.model_dump(mode="json") for c in page],
+        "returned": len(page),
+        "has_more": has_more,
+        "offset": offset,
+        "limit": limit,
+    }
 
 
 @router.get(
@@ -473,36 +519,6 @@ async def delete_memory(
     return Response(status_code=204)
 
 
-@router.get("/memories", responses=_UNAUTHENTICATED | _MISSING_AGENT_ID)
-@router.get("/memories/query", responses=_UNAUTHENTICATED | _MISSING_AGENT_ID)
-async def query_memories(
-    owner_id: str | None = None,
-    type: MemoryType | None = None,
-    status: LifecycleStatus | None = None,
-    limit: int = 20,
-    x_amp_agent_id: str | None = Depends(verified_agent_id),
-) -> dict[str, Any]:
-    if not x_amp_agent_id:
-        raise missing_agent_id()
-
-    storage = get_storage()
-    types_list = [type] if type else None
-    status_list = [status] if status else [LifecycleStatus.ACTIVE]
-
-    cells = await storage.query(
-        owner_id=owner_id,
-        types=types_list,
-        status=status_list,
-        limit=limit,
-    )
-
-    allowed_cells = [c for c in cells if check_read_access(c, x_amp_agent_id)]
-    return {
-        "results": [c.model_dump(mode="json") for c in allowed_cells],
-        "total": len(allowed_cells),
-    }
-
-
 # ---------------------------------------------------------------------------
 # Search
 # ---------------------------------------------------------------------------
@@ -518,7 +534,7 @@ async def search_memories(
 
     storage = get_storage()
     results = await storage.search(body, agent_id=x_amp_agent_id)
-    response = SearchResponse(results=results, total=len(results), query=body.query)
+    response = SearchResponse(results=results, returned=len(results), query=body.query)
     return response.model_dump(mode="json")
 
 
