@@ -4,7 +4,7 @@
 **Protocol version:** `0.1.0`  
 **Content-Type:** `application/json`
 
-All endpoints accept and return JSON. Memory-cell access control is expressed via `access_policy` on each cell; the only endpoint with its own auth is `POST /lifecycle/run`, gated on an admin token.
+All endpoints accept and return JSON. Memory-cell access control is expressed via `access_policy` on each cell. Identity travels in the `X-AMP-Agent-ID` header; see [Authentication](#authentication) for how that is proven when the server is run with API keys, and `POST /lifecycle/run` for the one endpoint with a separate admin token.
 
 ---
 
@@ -22,6 +22,55 @@ All endpoints accept and return JSON. Memory-cell access control is expressed vi
 | GET | `/memories/query` | Alias of `GET /memories` |
 | POST | `/memories/search` | Semantic search over memory cells |
 | POST | `/lifecycle/run` | Run one decay pass now (admin token required) |
+
+---
+
+## Authentication
+
+Three separate things, which are easy to confuse:
+
+**Agent identity.** `X-AMP-Agent-ID` names the agent making the request. The spec
+defines identity here and defines no credential
+([RFC-AMP-001 §6.1](https://github.com/glatinone/agent-memory-protocol/blob/master/spec/rfcs/RFC-AMP-001.md)),
+so by default the header is taken at its word - every access rule downstream
+(`readable_by`, `writable_by`, the owner check) is decided from it. A server run
+this way is exactly as the spec describes, and is only safe on a network you
+control.
+
+**API keys (optional).** Set `AMP_API_KEYS_FILE` to a JSON file mapping agent id
+to a key digest, and the header must then be proven:
+
+```json
+{
+  "agent_assistant": "sha256:2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+}
+```
+
+```bash
+python -m amp_server.auth hash 'the-agent-key'   # prints the value to paste
+export AMP_API_KEYS_FILE=/etc/amp/api-keys.json
+```
+
+The file holds digests, never keys, so a leaked file does not hand over working
+credentials. With keys configured, a request must send the matching key in
+`X-AMP-API-Key`; a missing key, a wrong key and a key for an agent that does not
+exist all answer the same `401 UNAUTHENTICATED`, so the endpoints cannot be used
+to enumerate agent ids. Two consequences worth stating plainly:
+
+- `POST /memories` no longer falls back to `identity.created_by` in the body.
+  That fallback is the documented default without keys, and with keys configured
+  it would let any caller create a cell as any agent.
+- A store that cannot be read stops the server from starting. Falling back to
+  trusting the header would silently remove the protection an operator asked for.
+
+`GET /health` and `GET /spec` stay open: clients and probes read them before they
+have a key. The SDKs accept the key as a constructor argument
+(`AMPClient(url, agent_id, api_key=...)`, `new AMPClient(url, agentId, apiKey)`).
+
+**Admin token.** `POST /lifecycle/run` is gated on `AMP_ADMIN_TOKEN`, separately
+from the above, because it mutates lifecycle state for every cell in storage and
+erases data outright when `AMP_PURGE_RETENTION` is on. With no token configured
+the endpoint answers `403 ADMIN_DISABLED` rather than being open.
 
 ---
 
@@ -86,6 +135,7 @@ curl http://localhost:8765/amp/v1/spec
   "capabilities": {
     "mcp_compatible": false,
     "storage_backends": ["chroma"],
+    "api_keys_required": false,
     "embedding": {"provider": "chroma-default", "dimensions": 384},
     "max_cell_size_bytes": 65536,
     "retention_days": 30,
@@ -108,6 +158,7 @@ suite checks it against the server's own numbers rather than a fixed value:
 | Capability | What it commits the server to |
 |---|---|
 | `mcp_compatible` | Whether **this HTTP server** speaks MCP directly. It is `false`: the MCP integration ships as a separate stdio process (`amp-mcp`, see `examples/mcp-claude-desktop/`), not as an endpoint on this API. |
+| `api_keys_required` | Whether this server requires `X-AMP-API-Key` (`AMP_API_KEYS_FILE` is set). Reported here so a client learns it needs a key before a call fails with `401`. |
 | `storage_backends` | The adapter actually wired in (`chroma` or `postgres`), selected with `AMP_STORAGE_BACKEND`; see [getting started](getting-started.md#6-choosing-a-storage-backend). |
 | `embedding` | Which provider turns text into vectors, and the width of the vectors it produces (`null` when the service decides per request). Configured with `AMP_EMBEDDING_PROVIDER`; see [getting started](getting-started.md#5-choosing-an-embedding-provider). |
 | `max_cell_size_bytes` | The largest serialized cell the server will accept. Enforced on create and on update; a larger cell is refused with `413 CELL_TOO_LARGE` before anything is written, and the number here is the number the check uses. |

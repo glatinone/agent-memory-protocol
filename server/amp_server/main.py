@@ -9,10 +9,11 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, FastAPI, Header, Request
+from fastapi import APIRouter, Depends, FastAPI, Header, Request
 from fastapi.responses import JSONResponse, Response
 
 from amp_server.access_control import check_read_access, check_write_access
+from amp_server.auth import ApiKeyStore, store_from_env
 from amp_server.embeddings import provider_from_env
 from amp_server.errors import (
     AMPError,
@@ -20,6 +21,7 @@ from amp_server.errors import (
     admin_disabled,
     invalid_transition,
     missing_agent_id,
+    unauthenticated,
 )
 from amp_server.lifecycle import LifecycleEngine
 from amp_server.limits import MAX_CELL_SIZE_BYTES
@@ -68,6 +70,10 @@ def configure_logging() -> None:
 _storage: StorageAdapter | None = None
 _lifecycle: LifecycleEngine | None = None
 _lifecycle_settings = settings_from_env()
+# None means this deployment runs without API keys, and the identity header is
+# trusted as the spec's binding describes. Set from the lifespan, so a key store
+# that cannot be read stops the server rather than turning into a 401 later.
+_api_key_store: ApiKeyStore | None = None
 
 
 def _build_storage() -> StorageAdapter:
@@ -108,6 +114,38 @@ def get_storage() -> StorageAdapter:
     return _storage
 
 
+def get_api_key_store() -> ApiKeyStore | None:
+    """The configured key store, or None when this deployment has no keys."""
+    return _api_key_store
+
+
+async def verified_agent_id(
+    x_amp_agent_id: str | None = Header(default=None),
+    x_amp_api_key: str | None = Header(default=None),
+) -> str | None:
+    """The caller's agent id, proven against the key store when one is configured.
+
+    The single gate for every route that acts as an agent: identity resolution
+    and its proof live here rather than in six handlers, so a new route cannot
+    get one without the other. Returns None when no header was sent - the create
+    route falls back to the body's `created_by`, and every other route raises
+    `MISSING_AGENT_ID` itself.
+    """
+    store = get_api_key_store()
+    if x_amp_agent_id is None:
+        # With keys configured, an unproven identity must not slip in through the
+        # body either: `create_memory` falls back to `identity.created_by`, which
+        # would let any caller create a cell as any agent.
+        if store is not None:
+            raise unauthenticated()
+        return None
+    if store is None:
+        return x_amp_agent_id
+    if x_amp_api_key is None or not store.verify(x_amp_agent_id, x_amp_api_key):
+        raise unauthenticated()
+    return x_amp_agent_id
+
+
 def get_lifecycle() -> LifecycleEngine:
     assert _lifecycle is not None, (
         "LifecycleEngine not initialized — lifespan not started"
@@ -122,12 +160,15 @@ def get_lifecycle() -> LifecycleEngine:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _storage, _lifecycle, _lifecycle_settings
+    global _storage, _lifecycle, _lifecycle_settings, _api_key_store
     configure_logging()
     # Built here, not at import: a misconfigured backend must stop the server
     # from starting rather than surface as poor search results later.
     _storage = _build_storage()
     _lifecycle = LifecycleEngine(_storage)
+    # Same reason: a key store that cannot be read must stop the server, not
+    # fall back to trusting an unverified header.
+    _api_key_store = store_from_env()
 
     # Read settings here, not only at import: a test (or an embedder) can set
     # AMP_LIFECYCLE_* before starting the app and expect it to take effect.
@@ -198,6 +239,13 @@ _MISSING_AGENT_ID: dict[int | str, dict[str, Any]] = {
         "description": "X-AMP-Agent-ID header is required",
     }
 }
+_UNAUTHENTICATED: dict[int | str, dict[str, Any]] = {
+    401: {
+        "model": ErrorResponse,
+        "description": "X-AMP-API-Key is missing or not valid for this agent id "
+        "(only when AMP_API_KEYS_FILE is configured)",
+    }
+}
 _ACCESS_DENIED: dict[int | str, dict[str, Any]] = {
     403: {
         "model": ErrorResponse,
@@ -235,6 +283,9 @@ async def spec() -> dict[str, Any]:
         "capabilities": {
             "mcp_compatible": False,
             "storage_backends": [get_storage().name],
+            # Open endpoint on purpose: a client can find out it needs a key
+            # before it makes a call that would fail with 401.
+            "api_keys_required": _api_key_store is not None,
             "embedding": get_storage().embedding,
             "max_cell_size_bytes": MAX_CELL_SIZE_BYTES,
             "retention_days": get_storage().retention_days,
@@ -281,11 +332,11 @@ async def run_lifecycle_now(
 @router.post(
     "/memories",
     status_code=201,
-    responses=_MISSING_AGENT_ID | _CELL_TOO_LARGE,
+    responses=_UNAUTHENTICATED | _MISSING_AGENT_ID | _CELL_TOO_LARGE,
 )
 async def create_memory(
     body: MemoryCellCreate,
-    x_amp_agent_id: str | None = Header(default=None),
+    x_amp_agent_id: str | None = Depends(verified_agent_id),
 ) -> dict[str, Any]:
     # Determine effective agent_id: header takes priority, fallback to created_by
     agent_id = x_amp_agent_id or body.identity.created_by
@@ -317,10 +368,13 @@ async def create_memory(
     return cell.model_dump(mode="json")
 
 
-@router.get("/memories/{memory_id}", responses=_MISSING_AGENT_ID | _ACCESS_DENIED)
+@router.get(
+    "/memories/{memory_id}",
+    responses=(_UNAUTHENTICATED | _MISSING_AGENT_ID | _ACCESS_DENIED),
+)
 async def get_memory(
     memory_id: str,
-    x_amp_agent_id: str | None = Header(default=None),
+    x_amp_agent_id: str | None = Depends(verified_agent_id),
 ) -> dict[str, Any]:
     if not x_amp_agent_id:
         raise missing_agent_id()
@@ -347,13 +401,17 @@ async def get_memory(
 @router.patch(
     "/memories/{memory_id}",
     responses=(
-        _MISSING_AGENT_ID | _ACCESS_DENIED | _INVALID_TRANSITION | _CELL_TOO_LARGE
+        _UNAUTHENTICATED
+        | _MISSING_AGENT_ID
+        | _ACCESS_DENIED
+        | _INVALID_TRANSITION
+        | _CELL_TOO_LARGE
     ),
 )
 async def update_memory(
     memory_id: str,
     body: MemoryCellUpdate,
-    x_amp_agent_id: str | None = Header(default=None),
+    x_amp_agent_id: str | None = Depends(verified_agent_id),
 ) -> dict[str, Any]:
     if not x_amp_agent_id:
         raise missing_agent_id()
@@ -381,11 +439,14 @@ async def update_memory(
 @router.delete(
     "/memories/{memory_id}",
     status_code=204,
-    responses=_MISSING_AGENT_ID | _ACCESS_DENIED | _INVALID_TRANSITION,
+    responses=_UNAUTHENTICATED
+    | _MISSING_AGENT_ID
+    | _ACCESS_DENIED
+    | _INVALID_TRANSITION,
 )
 async def delete_memory(
     memory_id: str,
-    x_amp_agent_id: str | None = Header(default=None),
+    x_amp_agent_id: str | None = Depends(verified_agent_id),
 ) -> Response:
     if not x_amp_agent_id:
         raise missing_agent_id()
@@ -412,14 +473,14 @@ async def delete_memory(
     return Response(status_code=204)
 
 
-@router.get("/memories", responses=_MISSING_AGENT_ID)
-@router.get("/memories/query", responses=_MISSING_AGENT_ID)
+@router.get("/memories", responses=_UNAUTHENTICATED | _MISSING_AGENT_ID)
+@router.get("/memories/query", responses=_UNAUTHENTICATED | _MISSING_AGENT_ID)
 async def query_memories(
     owner_id: str | None = None,
     type: MemoryType | None = None,
     status: LifecycleStatus | None = None,
     limit: int = 20,
-    x_amp_agent_id: str | None = Header(default=None),
+    x_amp_agent_id: str | None = Depends(verified_agent_id),
 ) -> dict[str, Any]:
     if not x_amp_agent_id:
         raise missing_agent_id()
@@ -447,10 +508,10 @@ async def query_memories(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/memories/search", responses=_MISSING_AGENT_ID)
+@router.post("/memories/search", responses=_UNAUTHENTICATED | _MISSING_AGENT_ID)
 async def search_memories(
     body: SearchRequest,
-    x_amp_agent_id: str | None = Header(default=None),
+    x_amp_agent_id: str | None = Depends(verified_agent_id),
 ) -> dict[str, Any]:
     if not x_amp_agent_id:
         raise missing_agent_id()

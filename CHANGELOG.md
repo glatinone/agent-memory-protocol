@@ -107,6 +107,23 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   claimed a "background cleanup worker" that did not exist; it now describes what
   runs.
 
+- **Optional API-key authentication** (`amp_server.auth` +
+  `AMP_API_KEYS_FILE`). The spec carries agent identity in `X-AMP-Agent-ID` and
+  defines no credential (RFC §6.1), so the header was an assertion: anyone who
+  could reach the port could claim any agent id, and every access rule was decided
+  from that claim. With a key store configured, the id must now be proven with a
+  matching key in `X-AMP-API-Key`; the file stores `sha256:` digests rather than
+  keys, and a wrong key, a missing key and an unknown agent id all answer the same
+  `401 UNAUTHENTICATED` so the endpoints cannot enumerate agent ids. Off by
+  default, so the spec's binding keeps working unchanged for anyone who has not
+  opted in; a key store that cannot be read stops the server instead of silently
+  falling back to trusting the header. This also closes `POST /memories`'s
+  `identity.created_by` fallback whenever keys are configured - without that, the
+  fallback would have been an authentication bypass. Both SDKs take the key as a
+  constructor argument, and identity resolution now happens in one FastAPI
+  dependency rather than in each handler, so a route cannot resolve an agent
+  without proving it.
+
 ### Changed
 - **Every endpoint returns one error shape.** `PATCH /memories/{id}` answered a
   conflict with `{"detail": ...}` while `DELETE` answered with

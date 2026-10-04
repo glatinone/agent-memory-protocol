@@ -36,10 +36,13 @@ All methods are async. `serverUrl` is normalized the same way as the Python
 client: a bare host, a host with a trailing slash, or an explicit `/amp/v1` all
 resolve to the same endpoint prefix.
 
-### `new AMPClient(serverUrl, agentId)`
+### `new AMPClient(serverUrl, agentId, apiKey?)`
 
 - `serverUrl` - base URL of the AMP server.
 - `agentId` - this agent's identifier, sent as the `X-AMP-Agent-ID` header.
+- `apiKey` - optional; this agent's key, sent as `X-AMP-API-Key`. Only needed when
+  the server is run with `AMP_API_KEYS_FILE`, in which case a request without it is
+  answered `401 UNAUTHENTICATED`.
 
 ### `remember(content, ownerId, options?)`
 

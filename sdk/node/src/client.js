@@ -37,8 +37,11 @@ export class AMPClient {
   /**
    * @param {string} serverUrl Base URL of the AMP server.
    * @param {string} agentId   Identifier of this agent, sent as `X-AMP-Agent-ID`.
+   * @param {string} [apiKey]   Key belonging to `agentId`, sent as
+   *   `X-AMP-API-Key`. Only needed when the server is run with
+   *   `AMP_API_KEYS_FILE`; otherwise the agent id alone is accepted.
    */
-  constructor(serverUrl, agentId) {
+  constructor(serverUrl, agentId, apiKey) {
     if (!serverUrl) throw new AMPError("serverUrl is required");
     if (!agentId) throw new AMPError("agentId is required");
 
@@ -50,6 +53,20 @@ export class AMPClient {
       ? normalized
       : `${normalized}/amp/v1`;
     this.agentId = agentId;
+    this.apiKey = apiKey;
+  }
+
+  /**
+   * The headers that identify this client, built in one place so no call path
+   * can be missing the credential.
+   *
+   * @returns {Record<string, string>}
+   * @private
+   */
+  _identityHeaders() {
+    const headers = { "X-AMP-Agent-ID": this.agentId };
+    if (this.apiKey) headers["X-AMP-API-Key"] = this.apiKey;
+    return headers;
   }
 
   /**
@@ -66,7 +83,7 @@ export class AMPClient {
   async _request(method, path, { body, headers = {} } = {}) {
     const url = new URL(`${this.serverUrl}${path}`);
 
-    const finalHeaders = { "X-AMP-Agent-ID": this.agentId, ...headers };
+    const finalHeaders = { ...this._identityHeaders(), ...headers };
     let payload;
     if (body !== undefined) {
       finalHeaders["Content-Type"] = "application/json";

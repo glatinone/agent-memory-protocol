@@ -11,12 +11,25 @@ from amp_client.exceptions import AMPError
 class AsyncAMPClient:
     """Asynchronous AMP Client using httpx."""
 
-    def __init__(self, server_url: str, agent_id: str):
+    def __init__(self, server_url: str, agent_id: str, api_key: str | None = None):
+        """Initialize the async AMP client.
+
+        `api_key` is the key belonging to `agent_id`, sent as `X-AMP-API-Key`. It
+        is only needed when the server was started with `AMP_API_KEYS_FILE`.
+        """
         self.server_url = server_url.rstrip("/")
         if not self.server_url.endswith("/amp/v1"):
             self.server_url += "/amp/v1"
         self.agent_id = agent_id
+        self.api_key = api_key
         self._client: httpx.AsyncClient | None = None
+
+    def identity_headers(self) -> dict[str, str]:
+        """See AMPClient.identity_headers: one place, so no call path is missed."""
+        headers = {"X-AMP-Agent-ID": self.agent_id}
+        if self.api_key:
+            headers["X-AMP-API-Key"] = self.api_key
+        return headers
 
     async def __aenter__(self) -> AsyncAMPClient:
         self._client = httpx.AsyncClient()
@@ -81,7 +94,7 @@ class AsyncAMPClient:
                 resp = await client.post(
                     f"{self.server_url}/memories",
                     json=body,
-                    headers={"X-AMP-Agent-ID": self.agent_id},
+                    headers=self.identity_headers(),
                 )
             except httpx.HTTPError as exc:
                 raise AMPError(f"HTTP request failed: {exc}") from exc
@@ -108,7 +121,7 @@ class AsyncAMPClient:
                 resp = await client.post(
                     f"{self.server_url}/memories/search",
                     json=body,
-                    headers={"X-AMP-Agent-ID": self.agent_id},
+                    headers=self.identity_headers(),
                 )
             except httpx.HTTPError as exc:
                 raise AMPError(f"HTTP request failed: {exc}") from exc
@@ -122,7 +135,7 @@ class AsyncAMPClient:
             try:
                 resp = await client.delete(
                     f"{self.server_url}/memories/{memory_id}",
-                    headers={"X-AMP-Agent-ID": self.agent_id},
+                    headers=self.identity_headers(),
                 )
             except httpx.HTTPError as exc:
                 raise AMPError(f"HTTP request failed: {exc}") from exc
@@ -149,7 +162,7 @@ class AsyncAMPClient:
                 resp = await client.get(
                     f"{self.server_url}/memories",
                     params=params,
-                    headers={"X-AMP-Agent-ID": self.agent_id},
+                    headers=self.identity_headers(),
                 )
             except httpx.HTTPError as exc:
                 raise AMPError(f"HTTP request failed: {exc}") from exc

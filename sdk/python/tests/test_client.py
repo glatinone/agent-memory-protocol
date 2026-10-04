@@ -186,3 +186,40 @@ def test_health_error(mock_request):
 
     client = AMPClient("http://localhost:8000", "test_agent")
     assert client.health() is False
+
+
+# ---------------------------------------------------------------------------
+# API keys (X-AMP-API-Key)
+# ---------------------------------------------------------------------------
+
+
+def test_identity_headers_omit_the_key_unless_one_was_given():
+    """No key means no key header: the server trusts the agent id by default."""
+    assert AMPClient("http://localhost:8000", "agent-1").identity_headers() == {
+        "X-AMP-Agent-ID": "agent-1"
+    }
+    assert AMPClient("http://localhost:8000", "agent-1").api_key is None
+
+
+def test_identity_headers_carry_the_key_when_one_was_given():
+    client = AMPClient("http://localhost:8000", "agent-1", api_key="agent-one-key")
+    assert client.identity_headers() == {
+        "X-AMP-Agent-ID": "agent-1",
+        "X-AMP-API-Key": "agent-one-key",
+    }
+
+
+@patch("requests.Session.request")
+def test_the_key_is_sent_on_requests(mock_request):
+    """The header has to reach the wire, not just the constructor."""
+    mock_response = MagicMock()
+    mock_response.status_code = 201
+    mock_response.json.return_value = {"id": "mem_123"}
+    mock_request.return_value = mock_response
+
+    client = AMPClient("http://localhost:8000", "agent-1", api_key="agent-one-key")
+    client.remember(content="a fact", owner_id="user_abc")
+
+    sent = mock_request.call_args.kwargs["headers"]
+    assert sent["X-AMP-API-Key"] == "agent-one-key"
+    assert sent["X-AMP-Agent-ID"] == "agent-1"

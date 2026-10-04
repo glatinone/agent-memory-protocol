@@ -23,6 +23,26 @@ const OWNER = `node-sdk-test-user-${Date.now()}`;
 // being collected, before any hook runs, and would always skip.
 let serverUp = false;
 
+describe("API keys", () => {
+  test("omits the key header unless one was given", () => {
+    const client = new AMPClient("http://localhost:8000", "agent-1");
+    assert.deepEqual(client._identityHeaders(), { "X-AMP-Agent-ID": "agent-1" });
+  });
+
+  test("carries the key header when one was given", () => {
+    const client = new AMPClient("http://localhost:8000", "agent-1", "agent-one-key");
+    assert.deepEqual(client._identityHeaders(), {
+      "X-AMP-Agent-ID": "agent-1",
+      "X-AMP-API-Key": "agent-one-key",
+    });
+  });
+
+  test("lets a caller-supplied header win", () => {
+    const client = new AMPClient("http://localhost:8000", "agent-1");
+    assert.deepEqual(client._identityHeaders(), { "X-AMP-Agent-ID": "agent-1" });
+  });
+});
+
 describe("URL normalization", () => {
   test("appends /amp/v1 when missing", () => {
     const client = new AMPClient("http://localhost:8000", "a");

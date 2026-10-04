@@ -57,6 +57,20 @@ def access_denied() -> AMPError:
     return AMPError(403, "ACCESS_DENIED", "Access denied")
 
 
+def unauthenticated() -> AMPError:
+    """No key, or a key that does not belong to the claimed agent id.
+
+    One response for both, so the endpoint cannot be used to find out which agent
+    ids exist. Raised only when a key store is configured; without one the header
+    is trusted, as the spec's binding describes.
+    """
+    return AMPError(
+        401,
+        "UNAUTHENTICATED",
+        "X-AMP-API-Key is missing or not valid for this agent id",
+    )
+
+
 def admin_disabled() -> AMPError:
     """Manual lifecycle runs are opt-in: no token configured means no access."""
     return AMPError(

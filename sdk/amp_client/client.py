@@ -10,12 +10,18 @@ from amp_client.exceptions import AMPError
 class AMPClient:
     """Synchronous client for the Agent Memory Protocol (AMP) server."""
 
-    def __init__(self, server_url: str, agent_id: str) -> None:
+    def __init__(
+        self, server_url: str, agent_id: str, api_key: str | None = None
+    ) -> None:
         """Initialize the AMP client.
 
         Args:
             server_url: The base URL of the AMP server.
             agent_id: The ID of the agent using the client.
+            api_key: The key belonging to `agent_id`, sent as `X-AMP-API-Key`.
+                Only needed when the server was started with
+                `AMP_API_KEYS_FILE`; without that, the server accepts the agent
+                id on its own, which is the binding the spec describes.
         """
         # Normalize server_url (strip trailing slash and append /amp/v1 if not present)
         normalized_url = server_url.rstrip("/")
@@ -24,16 +30,27 @@ class AMPClient:
 
         self.server_url = normalized_url
         self.agent_id = agent_id
+        self.api_key = api_key
         self.session = requests.Session()
+
+    def identity_headers(self) -> dict[str, str]:
+        """The headers that identify this client, built in one place.
+
+        One source, for the same reason the server resolves identity in one
+        dependency: a credential added to one call path and forgotten on another
+        fails as a confusing 401 rather than as a code error.
+        """
+        headers = {"X-AMP-Agent-ID": self.agent_id}
+        if self.api_key:
+            headers["X-AMP-API-Key"] = self.api_key
+        return headers
 
     def _request(self, method: str, path: str, **kwargs: Any) -> requests.Response:
         """Internal helper to execute HTTP requests with error handling."""
         url = f"{self.server_url}{path}"
 
-        # Ensure standard headers are present
-        headers = kwargs.pop("headers", {})
-        if "X-AMP-Agent-ID" not in headers:
-            headers["X-AMP-Agent-ID"] = self.agent_id
+        # Identity first, so a caller-supplied header can still override it.
+        headers = {**self.identity_headers(), **kwargs.pop("headers", {})}
 
         try:
             response = self.session.request(method, url, headers=headers, **kwargs)

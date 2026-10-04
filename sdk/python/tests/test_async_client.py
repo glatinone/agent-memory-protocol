@@ -121,3 +121,22 @@ async def test_async_health_ok(mock_get):
 
     async with AsyncAMPClient("http://localhost:8000", "test_agent") as client:
         assert await client.health() is True
+
+
+# ---------------------------------------------------------------------------
+# API keys (X-AMP-API-Key)
+# ---------------------------------------------------------------------------
+
+
+def test_async_identity_headers_omit_the_key_unless_one_was_given():
+    client = AsyncAMPClient("http://localhost:8000", "agent-1")
+    assert client.identity_headers() == {"X-AMP-Agent-ID": "agent-1"}
+
+
+def test_async_identity_headers_carry_the_key_when_one_was_given():
+    """Every async call site uses this builder, so one test covers them all."""
+    client = AsyncAMPClient("http://localhost:8000", "agent-1", api_key="agent-one-key")
+    assert client.identity_headers() == {
+        "X-AMP-Agent-ID": "agent-1",
+        "X-AMP-API-Key": "agent-one-key",
+    }

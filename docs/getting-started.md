@@ -227,3 +227,37 @@ order. `GET /spec` reports which one is in use under `storage_backends`.
 
 The embedding-provider rules in step 5 apply to either backend: switching
 provider invalidates the vectors already stored.
+
+---
+
+## 7. Turning on API keys (optional)
+
+By default the server trusts the `X-AMP-Agent-ID` header, which is what the spec's
+binding describes: the header names the agent, and every access rule is decided
+from it. Anyone who can reach the port can therefore claim any agent id.
+
+To require proof, point the server at a key store:
+
+```bash
+python -m amp_server.auth hash 'the-agent-key'   # prints the value to paste
+```
+
+```json title="api-keys.json"
+{
+  "agent_assistant": "sha256:2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+}
+```
+
+```bash
+export AMP_API_KEYS_FILE=/etc/amp/api-keys.json
+```
+
+Clients then send the key alongside the identity header:
+
+```python
+client = AMPClient("http://localhost:8765", "agent_assistant", api_key="the-agent-key")
+```
+
+The file stores digests rather than keys, and a store that cannot be read stops
+the server rather than falling back to trusting the header. Full detail, including
+the two rules this changes, is in the [API reference](api-reference.md#authentication).

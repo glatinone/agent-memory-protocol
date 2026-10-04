@@ -672,6 +672,22 @@
               ],
               "title": "X-Amp-Agent-Id"
             }
+          },
+          {
+            "in": "header",
+            "name": "x-amp-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Amp-Api-Key"
+            }
           }
         ],
         "responses": {
@@ -727,6 +743,22 @@
                 }
               ],
               "title": "X-Amp-Agent-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-amp-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Amp-Api-Key"
             }
           }
         ],
@@ -864,6 +896,22 @@
               ],
               "title": "X-Amp-Agent-Id"
             }
+          },
+          {
+            "in": "header",
+            "name": "x-amp-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Amp-Api-Key"
+            }
           }
         ],
         "responses": {
@@ -921,6 +969,22 @@
                 }
               ],
               "title": "X-Amp-Agent-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-amp-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Amp-Api-Key"
             }
           }
         ],
@@ -999,6 +1063,22 @@
               ],
               "title": "X-Amp-Agent-Id"
             }
+          },
+          {
+            "in": "header",
+            "name": "x-amp-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Amp-Api-Key"
+            }
           }
         ],
         "responses": {
@@ -1075,6 +1155,22 @@
               ],
               "title": "X-Amp-Agent-Id"
             }
+          },
+          {
+            "in": "header",
+            "name": "x-amp-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Amp-Api-Key"
+            }
           }
         ],
         "responses": {
@@ -1149,6 +1245,22 @@
                 }
               ],
               "title": "X-Amp-Agent-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-amp-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Amp-Api-Key"
             }
           }
         ],

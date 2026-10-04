@@ -26,6 +26,10 @@ Store and retrieve memories with the synchronous client in under 5 lines:
 from amp_client import AMPClient
 
 client = AMPClient("http://localhost:8765", agent_id="agent_assistant")
+
+# Only when the server runs with AMP_API_KEYS_FILE; without it the agent id is
+# accepted on its own, which is the binding the spec describes.
+client = AMPClient("http://localhost:8765", agent_id="agent_assistant", api_key="...")
 client.remember(content="User prefers email correspondence.", owner_id="user_123")
 memories = client.recall(query="communication preferences", owner_id="user_123")
 print(memories[0]["content"]["text"])
