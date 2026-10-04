@@ -141,9 +141,9 @@ for item in results:
 The reference server and two client SDKs (Python and Node.js) are just the beginning for the AMP ecosystem. Our roadmap for the next few quarters includes:
 
 1. **More SDKs**: Go and Rust clients, to follow the Node.js one that already ships.
-2. **Framework Plugins**: Building connectors for LangChain, LlamaIndex, CrewAI, and AutoGen so that developers can plug AMP into their existing codebases with ease.
+2. **Framework adapters**: a LangChain memory class already ships with the Python SDK; LlamaIndex, CrewAI, and AutoGen adapters are next.
 3. **Hosted Enterprise Gateways**: Enterprise features like OAuth2/OIDC authentication, audit logging, and encrypted storage-at-rest.
-4. **Community Integrations**: Building memory adapters for popular production databases (e.g., PostgreSQL, Redis, Qdrant, Pinecone) so you can back your AMP server with your existing database infrastructure.
+4. **More storage backends**: ChromaDB and PostgreSQL + `pgvector` both ship today; Redis, Qdrant, and Pinecone adapters are the ones people ask for.
 
 ---
 

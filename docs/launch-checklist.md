@@ -85,6 +85,11 @@ not just present, but verified against the real code and docs. Last verified
       "what's next" list, which still promised a Postgres adapter and stronger
       auth as future work. Release notes for v0.1.0 carried the same stale
       claims and were rewritten in the same pass.
+- [x] Launch drafts re-checked a second time (2026-10-04) after the SDK artifacts
+      were attached to the `v0.1.0` release. `docs/blog/launch-post.md`'s roadmap
+      still listed a PostgreSQL adapter and a LangChain connector as future work
+      when both already ship; corrected. `README.md` now points installs at the
+      release assets, so "not on PyPI yet" no longer means "there is no wheel".
 
 ## 4. Community & Contribution Assets
 - [x] GitHub bug report template (`.github/ISSUE_TEMPLATE/bug_report.md`)
