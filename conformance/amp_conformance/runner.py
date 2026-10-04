@@ -33,7 +33,7 @@ VECTORS_DIR = Path(__file__).resolve().parent / "vectors"
 DEFAULT_SPEC = Path("spec/v0.1.0/memory-cell.schema.json")
 
 LOCAL_CATEGORIES = ("schema", "decay")
-HTTP_CATEGORIES = ("http_contract", "access_control")
+HTTP_CATEGORIES = ("http_contract", "access_control", "spec_capabilities")
 
 _PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_.]*)\}")
 
@@ -353,6 +353,135 @@ def check_access_matrix(vectors: dict[str, Any], client: httpx.Client) -> list[R
     return out
 
 
+def check_spec_capabilities(
+    vectors: dict[str, Any], client: httpx.Client
+) -> list[Result]:
+    """Check the server against the capabilities it declares at /spec.
+
+    The advertised values are read from the server under test, so this holds for
+    any implementation: what is checked is that the declaration is true, not that
+    it matches a number this suite happens to use.
+    """
+    out: list[Result] = []
+    cases = {case["check"]: case for case in vectors["spec_capabilities"]["cases"]}
+
+    try:
+        spec_response = client.get("/spec")
+        spec = spec_response.json() if spec_response.status_code == 200 else {}
+    except (httpx.HTTPError, ValueError) as exc:
+        for case in cases.values():
+            out.append(
+                _result(case, "spec_capabilities", False, f"GET /spec failed: {exc}")
+            )
+        return out
+
+    capabilities = spec.get("capabilities", {})
+
+    if "max_cell_size_bytes" in cases:
+        case = cases["max_cell_size_bytes"]
+        limit = capabilities.get("max_cell_size_bytes")
+        if not isinstance(limit, int) or limit <= 0:
+            out.append(
+                _result(
+                    case,
+                    "spec_capabilities",
+                    False,
+                    f"no usable advertised limit: {limit!r}",
+                )
+            )
+        else:
+            out.append(
+                _result(case, "spec_capabilities", *_check_cell_limit(client, limit))
+            )
+
+    if "manual_run_endpoint" in cases:
+        case = cases["manual_run_endpoint"]
+        endpoint = (capabilities.get("lifecycle_scheduler") or {}).get(
+            "manual_run_endpoint"
+        )
+        if not isinstance(endpoint, str) or not endpoint:
+            out.append(
+                _result(
+                    case,
+                    "spec_capabilities",
+                    False,
+                    f"no advertised endpoint: {endpoint!r}",
+                )
+            )
+        else:
+            path = (
+                endpoint.split("/amp/v1", 1)[-1] if "/amp/v1" in endpoint else endpoint
+            )
+            response = client.post(path)
+            # Any answer but "no such route" means the route exists; an admin
+            # token is expected to be absent here.
+            ok = response.status_code != 404
+            out.append(
+                _result(
+                    case,
+                    "spec_capabilities",
+                    ok,
+                    f"POST {path} -> {response.status_code}",
+                )
+            )
+
+    if "version_consistency" in cases:
+        case = cases["version_consistency"]
+        health = client.get("/health")
+        try:
+            health_version = health.json().get("amp_version")
+        except ValueError:
+            health_version = None
+        spec_version = spec.get("amp_version")
+        ok = spec_version is not None and spec_version == health_version
+        out.append(
+            _result(
+                case,
+                "spec_capabilities",
+                ok,
+                f"/spec says {spec_version!r}, /health says {health_version!r}",
+            )
+        )
+
+    return out
+
+
+def _check_cell_limit(client: httpx.Client, limit: int) -> tuple[bool, str]:
+    """Is the advertised maximum actually the maximum?
+
+    The text lengths are chosen so the serialized cell is certainly over or
+    comfortably under the limit whatever a server adds on top; the point is the
+    boundary the server claims, not its exact byte.
+    """
+    owner = "user-spec-capabilities"
+    headers = {"X-AMP-Agent-ID": "agent-conformance"}
+
+    def post(text_length: int) -> httpx.Response:
+        return client.post(
+            "/memories",
+            headers=headers,
+            json={
+                "type": "semantic",
+                "content": {"text": "x" * text_length},
+                "identity": {"owner_id": owner, "owner_type": "user"},
+            },
+        )
+
+    over = post(limit + 1024)
+    if 200 <= over.status_code < 300:
+        return False, f"a cell over the advertised {limit} bytes was accepted"
+
+    under = post(max(1, limit - 4096))
+    if not (200 <= under.status_code < 300):
+        return (
+            False,
+            f"a cell under the advertised {limit} bytes was refused "
+            f"({under.status_code}); the declaration is unusable",
+        )
+
+    return True, f"over-limit refused with {over.status_code}; under-limit accepted"
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -384,6 +513,8 @@ def run(
                 report.results.extend(check_http_contract(vectors, client))
             if wanted("access_control"):
                 report.results.extend(check_access_matrix(vectors, client))
+            if wanted("spec_capabilities"):
+                report.results.extend(check_spec_capabilities(vectors, client))
     elif only is None or set(only) & set(HTTP_CATEGORIES):
         print(
             "note: --base-url not given, so the HTTP categories were skipped",

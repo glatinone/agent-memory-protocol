@@ -1,0 +1,21 @@
+{
+  "category": "spec_capabilities",
+  "description": "A server is measured against the capabilities it advertises at GET /spec, not against this project's numbers. Advertising something that is not enforced is the failure these cases catch: a client that trusts the declaration is the one that gets hurt.",
+  "cases": [
+    {
+      "id": "advertised-max-cell-size-is-enforced",
+      "check": "max_cell_size_bytes",
+      "description": "A cell larger than the advertised maximum is refused, and one comfortably below it is accepted."
+    },
+    {
+      "id": "advertised-manual-run-endpoint-exists",
+      "check": "manual_run_endpoint",
+      "description": "lifecycle_scheduler.manual_run_endpoint names a route the server actually serves, rather than one it merely mentions."
+    },
+    {
+      "id": "advertised-version-matches-health",
+      "check": "version_consistency",
+      "description": "The version reported by /spec and by /health is the same. Two answers to one question is how a deployment starts lying about itself."
+    }
+  ]
+}

@@ -25,7 +25,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 def test_every_vector_file_loads_and_declares_its_category():
     vectors = runner.load_vectors()
-    assert set(vectors) == {"schema", "decay", "http_contract", "access_control"}
+    assert set(vectors) == {
+        "schema",
+        "decay",
+        "http_contract",
+        "access_control",
+        "spec_capabilities",
+    }
     for category, data in vectors.items():
         assert data["cases"], f"{category} has no cases"
         ids = [case["id"] for case in data["cases"]]
