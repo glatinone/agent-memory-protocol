@@ -39,10 +39,13 @@ jobs:
           python -m pip install --upgrade build
           python -m build --outdir dist sdk
 
+      # Re-running this workflow on an unchanged version must not fail: PyPI
+      # rejects re-uploads, so files that already exist are skipped.
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
+          skip-existing: true
 
   # npm publishes the same way, through the trusted publisher configured on
   # npmjs.com for this repository and this workflow file. No NPM_TOKEN exists.
@@ -64,6 +67,15 @@ jobs:
         working-directory: sdk/node
         run: node --test test/client.test.js
 
+      # npm refuses to publish over an existing version, so a re-run on an
+      # unchanged version is a no-op instead of a failure.
       - name: Publish to npm
         working-directory: sdk/node
-        run: npm publish --access public
+        run: |
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if [ "$(npm view "$name@$version" version 2>/dev/null)" = "$version" ]; then
+            echo "$name@$version is already on npm; nothing to publish."
+            exit 0
+          fi
+          npm publish --access public
